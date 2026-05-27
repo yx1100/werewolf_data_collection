@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏 {{ game_id }} — 狼人杀</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #010102; color: #f7f8f8; min-height: 100vh; -webkit-font-smoothing: antialiased; line-height: 1.5; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        .header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+        .header a { color: #8a8f98; text-decoration: none; font-size: 0.875rem; transition: color 0.15s; }
+        .header a:hover { color: #f7f8f8; }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card { background: #0f1011; border-radius: 12px; padding: 20px; border: 1px solid #23252a; }
+        .card h2 { font-size: 0.9375rem; font-weight: 600; color: #d0d6e0; margin-bottom: 12px; letter-spacing: -0.01em; }
+        .player-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; background: #141516; border: 1px solid transparent; transition: border-color 0.15s, opacity 0.3s; }
+        .player-card:hover { border-color: #23252a; }
+        .player-card.dead { opacity: 0.35; }
+        .player-card.dead .player-id { filter: grayscale(1); }
+        .player-id { width: 32px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8125rem; flex-shrink: 0; color: white; }
+        .role-werewolf { background: #e94560; }
+        .role-seer { background: #e9b845; color: #1a1a2e; }
+        .role-witch { background: #8b5cf6; }
+        .role-hunter { background: #27a644; }
+        .role-villager { background: #5e6ad2; }
+        .player-info { font-size: 0.875rem; }
+        .player-info .personality { color: #8a8f98; font-size: 0.75rem; margin-top: 2px; }
+        #event-log { max-height: 65vh; overflow-y: auto; }
+        #event-log::-webkit-scrollbar { width: 6px; }
+        #event-log::-webkit-scrollbar-track { background: transparent; }
+        #event-log::-webkit-scrollbar-thumb { background: #23252a; border-radius: 3px; }
+        .event { padding: 10px 14px; margin-bottom: 8px; border-radius: 6px; font-size: 0.875rem; line-height: 1.5; border: 1px solid #23252a; }
+        .event-system { background: #141516; color: #8a8f98; }
+        .event-speech { background: #141516; border-left: 3px solid #5e6ad2; }
+        .event-werewolf { background: #141516; border-left: 3px solid #e94560; }
+        .event-action { background: #141516; border-left: 3px solid #27a644; }
+        .event-result { background: #141516; border-left: 3px solid #e9b845; }
+        .event-death { background: #141516; border-left: 3px solid #e94560; }
+        .speaker { font-weight: 500; margin-bottom: 4px; color: #d0d6e0; }
+        .thought { color: #8a8f98; font-style: italic; font-size: 0.8rem; margin-top: 4px; padding-left: 8px; border-left: 2px solid #23252a; }
+        .phase-badge { display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-bottom: 8px; background: rgba(94,106,210,0.12); color: #828fff; }
+        #status { text-align: center; padding: 20px; color: #8a8f98; font-size: 0.875rem; }
+        .loading { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Settlement panel */
+        .settlement { margin-top: 0; }
+        .settlement-banner { text-align: center; padding: 32px 24px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #23252a; }
+        .settlement-banner.good { background: rgba(39,166,68,0.06); border-color: #27a644; }
+        .settlement-banner.werewolves { background: rgba(233,69,96,0.06); border-color: #e94560; }
+        .settlement-banner .title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+        .settlement-banner.good .title { color: #27a644; }
+        .settlement-banner.werewolves .title { color: #e94560; }
+        .settlement-banner .subtitle { font-size: 0.875rem; color: #8a8f98; margin-top: 8px; }
+        .settlement-banner .survivors { margin-top: 12px; font-size: 0.875rem; color: #d0d6e0; }
+        .settlement-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-bottom: 20px; }
+        .settlement-role-card { background: #141516; border-radius: 8px; padding: 12px 8px; text-align: center; border: 1px solid #23252a; }
+        .settlement-role-card.winner { border-color: #27a644; background: rgba(39,166,68,0.06); }
+        .settlement-role-card.loser { border-color: #e94560; background: rgba(233,69,96,0.06); }
+        .settlement-role-card.dead { opacity: 0.4; }
+        .settlement-role-card .role-emoji { font-size: 1.5rem; display: block; margin-bottom: 4px; }
+        .settlement-role-card .role-name { font-size: 0.8125rem; color: #d0d6e0; }
+        .settlement-role-card .player-label { font-size: 0.6875rem; color: #8a8f98; margin-top: 2px; }
+        .settlement-stats { display: flex; gap: 16px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+        .settlement-stat { background: #141516; border-radius: 8px; padding: 12px 20px; text-align: center; border: 1px solid #23252a; }
+        .settlement-stat .stat-value { font-size: 1.25rem; font-weight: 600; color: #f7f8f8; }
+        .settlement-stat .stat-label { font-size: 0.75rem; color: #8a8f98; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🐺 游戏 — {{ game_id }}</h1>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button id="btn-pause" onclick="pauseGame()" style="padding:6px 14px; border-radius:6px; border:1px solid #23252a; background:transparent; color:#d0d6e0; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">⏸️ 暂停</button>
+                <button id="btn-resume" onclick="resumeGame()" style="display:none; padding:6px 14px; border-radius:6px; border:1px solid #27a644; background:transparent; color:#27a644; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">▶️ 继续</button>
+                <button id="btn-stop" onclick="stopGame()" style="padding:6px 14px; border-radius:6px; border:1px solid #e94560; background:transparent; color:#e94560; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">⏹️ 停止</button>
+                <a href="/">← 返回大厅</a>
+            </div>
+        </div>
+        <div class="grid">
+            <div>
+                <div class="card">
+                    <h2>玩家状态</h2>
+                    <div id="players"></div>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <div id="status" class="loading">等待游戏开始...</div>
+                    <div id="event-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const gameId = "{{ game_id }}";
+        const playerRoles = {};
+
+        function renderPlayers(players) {
+            if (!players || !players.length) return;
+            const el = document.getElementById('players');
+            const roleClass = {
+                'werewolf': 'role-werewolf',
+                'seer': 'role-seer',
+                'witch': 'role-witch',
+                'hunter': 'role-hunter',
+                'villager': 'role-villager',
+            };
+            const roleName = {
+                'werewolf': '🐺 狼人',
+                'seer': '🔮 预言家',
+                'witch': '🧪 女巫',
+                'hunter': '🔫 猎人',
+                'villager': '👤 平民',
+            };
+            el.innerHTML = players.map(p => {
+                const cls = roleClass[p.role] || 'role-villager';
+                const name = roleName[p.role] || p.role;
+                return `<div class="player-card" id="player-${p.player_id}" data-role="${p.role}">
+                    <div class="player-id ${cls}">${p.player_id}</div>
+                    <div class="player-info">
+                        <div><strong>${name}</strong></div>
+                        <div class="personality">${typeof p.personality === 'object' ? (p.personality && p.personality.name) || '' : (p.personality || '')}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function markPlayerDead(playerId) {
+            const el = document.getElementById('player-' + playerId);
+            if (el) el.classList.add('dead');
+        }
+
+        function addEvent(event) {
+            const log = document.getElementById('event-log');
+            const status = document.getElementById('status');
+            status.innerHTML = '';
+
+            let cls = 'event-system';
+            let html = '';
+
+            switch (event.type) {
+                case 'phase_change':
+                    cls = 'event-system';
+                    html = `<span class="phase-badge">${event.phase}</span> ${event.message || ''}`;
+                    break;
+                case 'speech':
+                    cls = event.phase === 'day_discussion' ? 'event-speech' : 'event-speech';
+                    html = `<div class="speaker">🎤 ${event.player_id}号玩家：</div>
+                            <div>${event.speech || ''}</div>`;
+                    break;
+                case 'werewolf_chat':
+                    cls = 'event-werewolf';
+                    html = `<div class="speaker">🐺 狼人${event.player_id}号（私下）：</div>
+                            <div>${event.message || ''}</div>`;
+                    break;
+                case 'day_announce':
+                    cls = 'event-death';
+                    html = `<div>☀️ ${event.message || ''}</div>`;
+                    if (event.night_summary && event.night_summary.length) {
+                        html += '<div style="margin-top:6px; font-size:0.85rem; color:#aaa;">';
+                        event.night_summary.forEach(function(s) { html += `<div>🌙 ${s}</div>`; });
+                        html += '</div>';
+                    }
+                    if (event.dead_players && event.dead_players.length) {
+                        event.dead_players.forEach(function(pid) { markPlayerDead(pid); });
+                    }
+                    break;
+                case 'vote_result':
+                    cls = 'event-result';
+                    html = `<div>🗳️ ${event.message || ''}</div>`;
+                    if (event.votes && event.votes.length) {
+                        html += '<div style="margin-top:4px; font-size:0.85rem; color:#aaa;">';
+                        event.votes.forEach(function(v) {
+                            html += `<div>  ${v.voter_id}号 → ${v.target}号</div>`;
+                        });
+                        html += '</div>';
+                    }
+                    if (event.tally) {
+                        html += '<div style="margin-top:4px; font-size:0.85rem; color:#ccc;">票数统计: ';
+                        var parts = [];
+                        for (var pid in event.tally) {
+                            parts.push(pid + '号(' + event.tally[pid] + '票)');
+                        }
+                        html += parts.join('，') + '</div>';
+                    }
+                    if (event.eliminated) markPlayerDead(event.eliminated);
+                    break;
+                case 'elimination':
+                    cls = 'event-death';
+                    html = `<div>💀 ${event.message || ''}</div>`;
+                    markPlayerDead(event.player_id);
+                    break;
+                case 'hunter_activate':
+                    cls = 'event-action';
+                    html = `<div>🔫 ${event.message || ''}</div>`;
+                    break;
+                case 'hunter_shoot':
+                    cls = 'event-death';
+                    html = `<div>🔫 ${event.message || ''}</div>`;
+                    markPlayerDead(event.target);
+                    break;
+                case 'game_paused':
+                    cls = 'event-system';
+                    html = '<div>⏸️ ' + (event.message || '游戏已暂停') + '</div>';
+                    break;
+                case 'game_resumed':
+                    cls = 'event-system';
+                    html = '<div>▶️ ' + (event.message || '游戏已恢复') + '</div>';
+                    break;
+                case 'game_stopped':
+                    cls = 'event-system';
+                    html = `<div>⏹️ ${event.message || '游戏已停止'}</div>`;
+                    break;
+                case 'last_words':
+                    cls = 'event-action';
+                    html = `<div class="speaker">📝 ${event.player_id}号玩家遗言：</div>
+                            <div>${event.message || event.speech || ''}</div>`;
+                    break;
+                case 'game_over':
+                    cls = 'event-system';
+                    html = renderSettlement(event);
+                    break;
+                case 'roles_revealed': {
+                    cls = 'event-system';
+                    var entries = Object.entries(event.roles || {}).map(function(e) {
+                        var display = typeof e[1] === 'object' ? e[1].display : e[1];
+                        return e[0] + '号：' + display;
+                    }).join('<br>  ');
+                    html = '<div>🔍 身份揭晓：<br>  ' + entries + '</div>';
+                    break;
+                }
+                default:
+                    html = JSON.stringify(event);
+            }
+
+            const div = document.createElement('div');
+            div.className = 'event ' + cls;
+            div.innerHTML = html;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function renderSettlement(event) {
+            const roles = event.roles || {};
+            const winner = event.winner || '';
+            const round = event.round || 0;
+            const surviving = event.surviving || [];
+
+            const isGoodWin = winner === 'good';
+            const bannerCls = isGoodWin ? 'good' : 'werewolves';
+            const winnerLabel = isGoodWin ? '好人阵营获胜' : '狼人阵营获胜';
+            const winnerEmoji = isGoodWin ? '🟢' : '🔴';
+
+            const roleEmojiMap = {
+                'werewolf': '🐺', 'seer': '🔮', 'witch': '🧪',
+                'hunter': '🔫', 'villager': '👤'
+            };
+            const roleNameMap = {
+                'werewolf': '狼人', 'seer': '预言家', 'witch': '女巫',
+                'hunter': '猎人', 'villager': '平民'
+            };
+
+            var roleCards = Object.keys(roles).sort().map(function(pid) {
+                var r = roles[pid];
+                var role = typeof r === 'object' ? r.role : '';
+                var alive = typeof r === 'object' ? r.alive : true;
+                var isWerewolf = role === 'werewolf';
+                var onWinningTeam = isGoodWin ? !isWerewolf : isWerewolf;
+                var cardCls = onWinningTeam ? 'winner' : 'loser';
+                if (!alive) cardCls += ' dead';
+                return '<div class="settlement-role-card ' + cardCls + '">' +
+                    '<span class="role-emoji">' + (roleEmojiMap[role] || '❓') + '</span>' +
+                    '<span class="role-name">' + (roleNameMap[role] || role) + '</span>' +
+                    '<span class="player-label">' + pid + '号 ' + (alive ? '存活' : '死亡') + '</span>' +
+                    '</div>';
+            }).join('');
+
+            return '<div class="settlement">' +
+                '<div class="settlement-banner ' + bannerCls + '">' +
+                '<div class="title">' + winnerEmoji + ' ' + winnerLabel + '</div>' +
+                (surviving.length ? '<div class="survivors">幸存玩家: ' + surviving.join('号、') + '号</div>' : '') +
+                '<div class="settlement-stats">' +
+                '<div class="settlement-stat"><div class="stat-value">' + round + '</div><div class="stat-label">总轮数</div></div>' +
+                '<div class="settlement-stat"><div class="stat-value">' + surviving.length + '</div><div class="stat-label">幸存人数</div></div>' +
+                '</div></div>' +
+                '<div class="settlement-roles">' + roleCards + '</div>' +
+                '</div>';
+        }
+
+        // SSE connection
+        const evtSource = new EventSource('/game/' + gameId + '/stream');
+        evtSource.onmessage = function(e) {
+            try {
+                const event = JSON.parse(e.data);
+                if (event.type === 'heartbeat') return;
+                if (event.type === 'game_started') {
+                    renderPlayers(event.players);
+                    document.getElementById('status').innerHTML = '游戏开始！';
+                } else if (event.type === 'game_state') {
+                    renderPlayers(event.players);
+                    if (event.dead_players && event.dead_players.length) {
+                        event.dead_players.forEach(function(pid) { markPlayerDead(pid); });
+                    }
+                    if (event.recent_events && event.recent_events.length) {
+                        event.recent_events.forEach(function(evt) { addEvent(evt); });
+                    }
+                    document.getElementById('status').innerHTML = '游戏进行中...';
+                } else if (event.type === 'game_ended') {
+                    document.getElementById('status').innerHTML = '✅ 游戏结束';
+                    document.getElementById('btn-pause').style.display = 'none';
+                    document.getElementById('btn-resume').style.display = 'none';
+                    document.getElementById('btn-stop').style.display = 'none';
+                    setTimeout(function() { evtSource.close(); }, 3000);
+                } else if (event.type === 'game_paused') {
+                    addEvent(event);
+                    document.getElementById('status').innerHTML = '⏸️ 游戏已暂停';
+                    document.getElementById('btn-pause').style.display = 'none';
+                    document.getElementById('btn-resume').style.display = '';
+                } else if (event.type === 'game_resumed') {
+                    addEvent(event);
+                    document.getElementById('status').innerHTML = '游戏进行中...';
+                    document.getElementById('btn-pause').style.display = '';
+                    document.getElementById('btn-resume').style.display = 'none';
+                } else if (event.type === 'game_stopped') {
+                    addEvent(event);
+                    document.getElementById('status').innerHTML = '⏹️ 游戏已停止';
+                    document.getElementById('btn-pause').style.display = 'none';
+                    document.getElementById('btn-resume').style.display = 'none';
+                    document.getElementById('btn-stop').style.display = 'none';
+                    evtSource.close();
+                } else {
+                    addEvent(event);
+                }
+            } catch (err) {
+                console.error('Parse error:', err);
+            }
+        };
+        evtSource.onerror = function() {
+            document.getElementById('status').innerHTML = '连接中断，尝试重连...';
+        };
+
+        async function pauseGame() {
+            await fetch('/game/' + gameId + '/pause', { method: 'POST' });
+        }
+        async function resumeGame() {
+            await fetch('/game/' + gameId + '/resume', { method: 'POST' });
+        }
+        async function stopGame() {
+            if (confirm('确定要停止游戏吗？')) {
+                await fetch('/game/' + gameId + '/stop', { method: 'POST' });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>狼人杀 LLM 数据收集平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #010102; color: #f7f8f8; min-height: 100vh; -webkit-font-smoothing: antialiased; line-height: 1.5; }
+        .container { max-width: 960px; margin: 0 auto; padding: 48px 24px; }
+        h1 { text-align: center; font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
+        .subtitle { text-align: center; color: #8a8f98; font-size: 0.875rem; margin-bottom: 48px; }
+        .card { background: #0f1011; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #23252a; }
+        .card h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 16px; color: #d0d6e0; }
+        .form-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 200px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #8a8f98; font-size: 0.8125rem; font-weight: 500; }
+        .form-group select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #23252a; background: #141516; color: #f7f8f8; font-size: 0.875rem; font-family: 'Inter', sans-serif; transition: border-color 0.15s; cursor: pointer; }
+        .form-group select:focus { outline: none; border-color: #5e6ad2; }
+        .form-group select option { background: #141516; color: #f7f8f8; }
+        .btn { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.875rem; font-weight: 500; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+        .btn-primary { background: #5e6ad2; color: white; }
+        .btn-primary:hover { background: #828fff; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8125rem; }
+        .btn-danger { background: transparent; color: #e94560; border: 1px solid #23252a; }
+        .btn-danger:hover { background: #141516; border-color: #e94560; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #23252a; }
+        th { color: #8a8f98; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        td { color: #d0d6e0; font-size: 0.875rem; }
+        .winner-good { color: #27a644; font-weight: 500; }
+        .winner-werewolf { color: #e94560; font-weight: 500; }
+        .active-badge { display: inline-block; background: rgba(39,166,68,0.12); color: #27a644; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .empty { text-align: center; color: #8a8f98; padding: 40px; font-size: 0.875rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐺 狼人杀 LLM 数据收集平台</h1>
+        <p class="subtitle">全自动 AI 玩家对战 · 同步收集文本数据</p>
+
+        <div class="card">
+            <h2>开始新游戏</h2>
+            <form action="/game/start" method="post">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="api_provider">选择模型提供商</label>
+                        <select name="api_provider" id="api_provider" onchange="updateModelPlaceholder()">
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="qwen">Qwen (通义千问)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="model_name">模型名称</label>
+                        <select name="model_name" id="model_name" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #23252a; background:#141516; color:#f7f8f8; font-size:0.875rem; font-family:'Inter',sans-serif;">
+                        </select>
+                    </div>
+                    <div class="form-group" style="min-width:auto; display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" name="deep_thinking" value="on" id="deep_thinking" style="width:18px; height:18px; accent-color:#5e6ad2;">
+                        <label for="deep_thinking" style="margin-bottom:0; cursor:pointer;">开启深度思考模式</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">开始游戏</button>
+                </div>
+                <p style="color:#8a8f98; font-size:0.8125rem; margin-top:12px;">游戏规则：9人入门局 — 3狼人 + 预言家 + 女巫 + 猎人 + 3平民</p>
+
+                <details style="margin-top:16px;">
+                    <summary style="cursor:pointer; color:#5e6ad2; font-weight:500; font-size:0.875rem;">🎭 自定义玩家性格（默认:无性格）</summary>
+                    <div style="display:flex; gap:10px; margin:12px 0 8px;">
+                        <button type="button" onclick="setAllPersonalities('random')" style="padding:4px 14px; border-radius:6px; border:1px solid #27a644; background:rgba(39,166,68,0.06); color:#27a644; cursor:pointer; font-size:0.8125rem; font-family:'Inter',sans-serif; font-weight:500;">🎲 全部随机</button>
+                        <button type="button" onclick="setAllPersonalities('none')" style="padding:4px 14px; border-radius:6px; border:1px solid #23252a; background:transparent; color:#8a8f98; cursor:pointer; font-size:0.8125rem; font-family:'Inter',sans-serif; font-weight:500;">✖ 全部清空</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px;">
+                        {% for i in range(1, 10) %}
+                        <div style="display:flex; align-items:center; gap:8px; background:#141516; padding:6px 10px; border-radius:6px;">
+                            <span style="font-weight:500; min-width:28px; color:#d0d6e0; font-size:0.875rem;">{{ i }}号</span>
+                            <select name="personality_{{ i }}" style="flex:1; padding:4px 8px; border-radius:6px; border:1px solid #23252a; background:#18191a; color:#f7f8f8; font-size:0.8125rem; font-family:'Inter',sans-serif;">
+                                <option value="none">— 无性格 —</option>
+                                <option value="random">🎲 随机</option>
+                                {% for p in personalities %}
+                                <option value="{{ p.name }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </details>
+            </form>
+        </div>
+
+        <script>
+        var models = {
+            deepseek: [
+                {value: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash'},
+                {value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro'}
+            ],
+            qwen: [
+                {value: 'qwen3.6-flash', label: 'Qwen3.6 Flash'},
+                {value: 'qwen3.6-plus', label: 'Qwen3.6 Plus'},
+                {value: 'qwen3.7-max', label: 'Qwen3.7 Max'}
+            ]
+        };
+        function updateModelOptions() {
+            var provider = document.getElementById('api_provider').value;
+            var sel = document.getElementById('model_name');
+            sel.innerHTML = '';
+            models[provider].forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.value;
+                opt.textContent = m.label;
+                sel.appendChild(opt);
+            });
+        }
+        function setAllPersonalities(val) {
+            for (var i = 1; i <= 9; i++) {
+                var s = document.getElementsByName('personality_' + i)[0];
+                if (s) s.value = val;
+            }
+        }
+        document.getElementById('api_provider').addEventListener('change', updateModelOptions);
+        updateModelOptions();
+        </script>
+
+        <div class="card">
+            <h2>📋 角色设定与提示词</h2>
+            <p style="color:#8a8f98; font-size:0.8125rem; margin-bottom:16px;">以下为每个角色注入到 LLM Agent 系统提示词中的身份描述和技能说明</p>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                {% for r in roles_info %}
+                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid {% if r.key == 'werewolf' %}#e94560{% elif r.key == 'seer' %}#e9b845{% elif r.key == 'witch' %}#8b5cf6{% elif r.key == 'hunter' %}#27a644{% else %}#5e6ad2{% endif %};">
+                    <div style="font-weight:600; margin-bottom:4px;">
+                        {% if r.key == 'werewolf' %}🐺{% elif r.key == 'seer' %}🔮{% elif r.key == 'witch' %}🧪{% elif r.key == 'hunter' %}🔫{% else %}👤{% endif %}
+                        {{ r.name }}
+                        <span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
+                    </div>
+                    <div style="color:#d0d6e0; font-size:0.8125rem; line-height:1.5;">{{ r.skill }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if active_games %}
+        <div class="card">
+            <h2>进行中的游戏</h2>
+            <table>
+                <thead><tr><th>游戏 ID</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for gid in active_games %}
+                <tr>
+                    <td><span class="active-badge">进行中</span> {{ gid }}</td>
+                    <td><a href="/game/{{ gid }}" class="btn btn-primary btn-sm">观看</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h2>已完成游戏</h2>
+            {% if completed_games %}
+            <table>
+                <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>结果</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for g in completed_games %}
+                <tr>
+                    <td>{{ g.game_id }}</td>
+                    <td>{{ g.display_time }}</td>
+                    <td>{{ g.api_provider }}</td>
+                    <td>{{ g.rounds }} 轮</td>
+                    <td class="{% if g.winner == 'good' %}winner-good{% else %}winner-werewolf{% endif %}">
+                        {% if g.winner == 'good' %}好人胜{% else %}狼人胜{% endif %}
+                    </td>
+                    <td><a href="/game/{{ g.game_id }}/data" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">查看数据</a>
+                        <button class="btn btn-sm btn-danger" onclick="deleteGame('{{ g.game_id }}')">删除</button></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">暂无已完成游戏</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    async function deleteGame(gameId) {
+        if (!confirm('确定要删除游戏 ' + gameId + ' 的数据吗？此操作不可撤销。')) return;
+        try {
+            const resp = await fetch('/game/' + gameId + '/data', { method: 'DELETE' });
+            const result = await resp.json();
+            if (result.status === 'deleted') {
+                location.reload();
+            } else {
+                alert('删除失败: ' + JSON.stringify(result));
+            }
+        } catch (err) {
+            alert('删除失败: ' + err.message);
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+game:
+  num_players: 9
+  roles:
+    werewolf: 3
+    seer: 1
+    witch: 1
+    hunter: 1
+    villager: 3
+
+  free_discussion_rounds: 2
+  phase_delay_seconds: 3
+  max_speech_length: 500  # max chars per speech
+
+  # Deep thinking mode (chain-of-thought reasoning before response)
+  # Qwen: enable_thinking=true via extra_body; DeepSeek: thinking:{type:"enabled"}
+  deep_thinking: false
+  thinking_budget: 2048     # max reasoning tokens, 0=unlimited (Qwen only)
+  preserve_thinking: false   # keep reasoning in multi-turn context (Qwen only)
+
+  # First night special rules
+  witch_self_save_first_night: true
