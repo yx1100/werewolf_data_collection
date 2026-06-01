@@ -64,7 +64,10 @@ python run.py --port 8080              # 自定义端口
 
 ```bash
 python run.py --cli --provider deepseek --thinking
+python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # 指定玩家 1、5 的性格，其余随机
 ```
+
+> CLI 用 `--personalities "玩家号=性格名,..."` 指定任意玩家的性格（玩家号 1-9，逗号分隔）；未指定或名字写错的玩家会随机分配。性格名见 `werewolf/personalities/traits.yaml`。
 
 ### 测试 API 连接
 

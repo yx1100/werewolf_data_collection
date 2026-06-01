@@ -7,6 +7,7 @@ Usage:
     python run.py --provider deepseek      # Default provider in web UI
     python run.py --thinking               # Enable deep thinking by default
     python run.py --cli                    # Run a single game in CLI mode
+    python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # CLI 指定玩家性格
 """
 
 import argparse
@@ -69,7 +70,53 @@ def print_banner(provider: str, thinking: bool):
     print()
 
 
-async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = ""):
+def parse_personality_spec(spec: str) -> dict:
+    """Parse a '1=戏精影帝,5=理性分析师' spec into {player_id: personality_name}.
+
+    Invalid items (missing '=', non-numeric or out-of-range id, empty name)
+    are skipped silently — those players fall back to random assignment.
+    """
+    result = {}
+    for item in spec.split(","):
+        if "=" not in item:
+            continue
+        pid_str, name = item.split("=", 1)
+        pid_str, name = pid_str.strip(), name.strip()
+        if pid_str.isdigit() and 1 <= int(pid_str) <= 9 and name:
+            result[int(pid_str)] = name
+    return result
+
+
+def assign_personalities(personalities: list, spec: str) -> list:
+    """Return personality dicts for players 1..9, in player order.
+
+    Players named in `spec` with a valid personality get it (duplicates allowed).
+    Every other player is filled randomly, avoiding already-used names when possible.
+    """
+    by_name = {p["name"]: p for p in personalities}
+    requested = parse_personality_spec(spec)
+
+    explicit = {pid: by_name[name]
+                for pid, name in requested.items() if name in by_name}
+    used = {p["name"] for p in explicit.values()}
+
+    assigned = []
+    for pid in range(1, 10):
+        if pid in explicit:
+            assigned.append(explicit[pid])
+            continue
+        p = random.choice(personalities)
+        fallback = 0
+        while p["name"] in used and fallback < 50:
+            p = random.choice(personalities)
+            fallback += 1
+        used.add(p["name"])
+        assigned.append(p)
+    return assigned
+
+
+async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
+                       personalities_spec: str = ""):
     """Run a single game from the CLI (no web UI)."""
     from werewolf.engine.game import Game
     from werewolf.llm import create_llm_client
@@ -108,14 +155,14 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "")
         preserve_thinking=game_config.get("preserve_thinking", False),
     )
 
-    # Assign roles and personalities
+    # Assign roles (always random); personalities follow --personalities, rest random
     roles = (["werewolf"] * 3 + ["seer", "witch", "hunter"] + ["villager"] * 3)
     random.shuffle(roles)
-    shuffled_personalities = random.sample(personalities, 9)
+    assigned_personalities = assign_personalities(personalities, personalities_spec)
 
     player_assignments = []
     for i, (role, personality) in enumerate(
-            zip(roles, shuffled_personalities), 1):
+            zip(roles, assigned_personalities), 1):
         player_assignments.append({
             "player_id": i,
             "role": role,
@@ -233,6 +280,7 @@ def main():
   python run.py --provider deepseek --thinking  # Web 界面，开启深度思考
   python run.py --cli --provider qwen        # CLI 模式直接运行一局
   python run.py --cli --provider deepseek --thinking  # CLI + 深度思考
+  python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # CLI 指定玩家性格
         """,
     )
     parser.add_argument(
@@ -247,6 +295,10 @@ def main():
     parser.add_argument(
         "--cli", action="store_true",
         help="Run a single game in CLI mode instead of starting web server")
+    parser.add_argument(
+        "--personalities", default="", metavar="SPEC",
+        help="仅 CLI：指定玩家性格，格式 '1=戏精影帝,5=理性分析师'（玩家号=性格名，"
+             "逗号分隔）；未指定或名字无效的玩家随机分配")
     parser.add_argument(
         "--list", action="store_true",
         help="List all completed games and exit")
@@ -293,7 +345,8 @@ def main():
         return
 
     if args.cli:
-        asyncio.run(run_cli_game(args.provider, args.thinking, args.model))
+        asyncio.run(run_cli_game(args.provider, args.thinking, args.model,
+                                 args.personalities))
     else:
         import uvicorn
         from werewolf.web.app import app

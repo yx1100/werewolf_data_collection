@@ -43,7 +43,7 @@
         <p class="subtitle">全自动 AI 玩家对战 · 同步收集文本数据</p>
 
         <div class="card">
-            <h2>开始新游戏</h2>
+            <h2>🎮 开始新游戏</h2>
             <form action="/game/start" method="post">
                 <div class="form-row">
                     <div class="form-group">
@@ -126,11 +126,28 @@
         <div class="card">
             <h2>📋 角色设定与提示词</h2>
             <p style="color:#8a8f98; font-size:0.8125rem; margin-bottom:16px;">以下为每个角色注入到 LLM Agent 系统提示词中的身份描述和技能说明</p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
-                {% for r in roles_info %}
-                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid {% if r.key == 'werewolf' %}#e94560{% elif r.key == 'seer' %}#e9b845{% elif r.key == 'witch' %}#8b5cf6{% elif r.key == 'hunter' %}#27a644{% else %}#5e6ad2{% endif %};">
+
+            <!-- 狼人阵营 -->
+            <h3 style="font-size:0.8125rem; font-weight:500; color:#e94560; margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">🐺 狼人阵营</h3>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; margin-bottom:20px;">
+                {% for r in roles_info if r.key == 'werewolf' %}
+                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid #e94560;">
                     <div style="font-weight:600; margin-bottom:4px;">
-                        {% if r.key == 'werewolf' %}🐺{% elif r.key == 'seer' %}🔮{% elif r.key == 'witch' %}🧪{% elif r.key == 'hunter' %}🔫{% else %}👤{% endif %}
+                        🐺 {{ r.name }}
+                        <span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
+                    </div>
+                    <div style="color:#d0d6e0; font-size:0.8125rem; line-height:1.5;">{{ r.skill }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 好人阵营 -->
+            <h3 style="font-size:0.8125rem; font-weight:500; color:#27a644; margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">🛡️ 好人阵营</h3>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                {% for r in roles_info if r.key != 'werewolf' %}
+                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid {% if r.key == 'seer' %}#e9b845{% elif r.key == 'witch' %}#8b5cf6{% elif r.key == 'hunter' %}#27a644{% else %}#5e6ad2{% endif %};">
+                    <div style="font-weight:600; margin-bottom:4px;">
+                        {% if r.key == 'seer' %}🔮{% elif r.key == 'witch' %}🧪{% elif r.key == 'hunter' %}🔫{% else %}👤{% endif %}
                         {{ r.name }}
                         <span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
                     </div>
@@ -158,7 +175,7 @@
         {% endif %}
 
         <div class="card">
-            <h2>已完成游戏</h2>
+            <h2>📊 已完成游戏</h2>
             {% if completed_games %}
             <table>
                 <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>结果</th><th>操作</th></tr></thead>
