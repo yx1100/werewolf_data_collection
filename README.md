@@ -25,7 +25,7 @@
 ### 安装
 
 ```bash
-git clone https://github.com/your-username/werwolf_data_collection.git
+git clone https://github.com/yx1100/werewolf_data_collection.git
 cd werwolf_data_collection
 pip install -r requirements.txt
 ```
@@ -64,10 +64,14 @@ python run.py --port 8080              # 自定义端口
 
 ```bash
 python run.py --cli --provider deepseek --thinking
-python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # 指定玩家 1、5 的性格，其余随机
+python run.py --cli --model qwen3.7-max                        # 指定模型名称
+python run.py --cli --personalities "1=戏精影帝,5=理性分析师"   # 指定玩家 1、5 的性格，其余随机
+python run.py --cli --personalities random                      # 全部随机分配性格
 ```
 
-> CLI 用 `--personalities "玩家号=性格名,..."` 指定任意玩家的性格（玩家号 1-9，逗号分隔）；未指定或名字写错的玩家会随机分配。性格名见 `werewolf/personalities/traits.yaml`。
+> `--model` 覆盖 `api_config.yaml` 中配置的默认模型名称，仅 CLI 模式生效。模型名必须与提供商匹配（见下方「模型名称验证」章节）。
+>
+> `--personalities` 通过 `"玩家号=性格名,..."` 指定任意玩家的性格（玩家号 1-9，逗号分隔）。特殊关键字 `random` 表示为所有 9 名玩家随机分配性格。未指定或名字无效的玩家也会随机分配。性格名见 `werewolf/personalities/traits.yaml`。
 
 ### 测试 API 连接
 
@@ -208,6 +212,25 @@ Web UI 启动游戏 → 随机分配角色+性格 → 创建 9 个 Agent
 ### 性格配置 (`werewolf/personalities/traits.yaml`)
 
 预设 12 种 AI 玩家性格，每种包含 `traits`（性格特征）和 `speaking_style`（说话风格）。可在 Web UI 中为每位玩家单独选择性格，也可随机分配。
+
+### 模型名称验证
+
+CLI 和 Web UI 均会对用户输入的模型名称进行验证。支持的模型列表定义在 `werewolf/llm/__init__.py` 的 `VALID_MODELS` 常量中：
+
+| 提供商 | 支持模型 |
+|--------|---------|
+| DeepSeek | `deepseek-v4-flash`、`deepseek-v4-pro` |
+| Qwen | `qwen3.6-flash`、`qwen3.6-plus`、`qwen3.7-max` |
+
+CLI 模式下，若 `--model` 指定了无效模型名，程序会报错并立即退出。Web UI 在服务端同样会校验，返回 400 错误。
+
+### 上下文长度控制
+
+系统对每个 Agent 的对话历史进行两层控制，防止超长上下文导致 API 调用失败：
+
+1. **轮数控制**：`agent.py` 中的 `MAX_HISTORY_TURNS = 20` 限制存储的对话轮数（保留最近 20 轮用户 + 助手交换），防止历史无限增长。
+
+2. **字符数控制**：所有发送给 LLM 的对话消息总字符数上限为 **1,000,000 字符**（约 1M 字符）。超过此限制时，系统自动丢弃最早的历史消息，保留系统提示词和最新内容，确保 API 调用不会因超长上下文而失败。
 
 ## 技术栈
 

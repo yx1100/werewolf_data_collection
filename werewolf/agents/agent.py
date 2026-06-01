@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 # Max conversation turns to keep in history (per agent)
 MAX_HISTORY_TURNS = 20
 
+# Max total characters of all messages sent to the LLM in a single call.
+# When exceeded, old non-system messages are dropped until the total fits.
+MAX_CONTEXT_CHARS = 1_000_000
+
 
 class Agent:
     """An LLM-powered Werewolf player agent.
@@ -103,10 +107,10 @@ class Agent:
         return output
 
     def _build_messages_for_call(self) -> list[dict]:
-        """Build the messages array for the current API call.
+        """Build messages array for the current API call, with char-based truncation.
 
-        Strategy: system prompt + truncated history + current user message.
-        The current user message is already in self._history as the last entry.
+        Strategy: system prompt + history turns, then truncate by character count
+        to stay within MAX_CONTEXT_CHARS. System prompt is always preserved.
         """
         # System prompt is always first
         messages = [self._history[0]]
@@ -115,7 +119,40 @@ class Agent:
         history_turns = self._history[1:]
         messages.extend(history_turns)
 
+        # Apply character-based truncation (preserves system prompt, trims oldest)
+        messages = self._truncate_by_chars(messages)
+
         return messages
+
+    @staticmethod
+    def _truncate_by_chars(messages: list[dict]) -> list[dict]:
+        """Trim messages to fit within MAX_CONTEXT_CHARS total char length.
+
+        Always preserves the first message (system prompt). Drops the oldest
+        non-system messages from the beginning until the total character count
+        of all message contents is <= MAX_CONTEXT_CHARS.
+        """
+        if not messages:
+            return messages
+
+        total = sum(len(m.get("content", "")) for m in messages)
+        if total <= MAX_CONTEXT_CHARS:
+            return messages
+
+        system_prompt = messages[0]
+        rest = list(messages[1:])
+
+        while rest:
+            candidate_total = sum(
+                len(m.get("content", "")) for m in [system_prompt] + rest)
+            if candidate_total <= MAX_CONTEXT_CHARS:
+                break
+            rest.pop(0)  # drop oldest non-system message
+
+        # Safety: even system prompt alone exceeds limit — keep only it
+        if not rest:
+            return [system_prompt]
+        return [system_prompt] + rest
 
     def _extract_assistant_content(self, response: dict,
                                    output: AgentOutput) -> str:

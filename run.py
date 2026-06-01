@@ -8,6 +8,7 @@ Usage:
     python run.py --thinking               # Enable deep thinking by default
     python run.py --cli                    # Run a single game in CLI mode
     python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # CLI 指定玩家性格
+    python run.py --cli --personalities random                     # 全部随机
 """
 
 import argparse
@@ -73,9 +74,13 @@ def print_banner(provider: str, thinking: bool):
 def parse_personality_spec(spec: str) -> dict:
     """Parse a '1=戏精影帝,5=理性分析师' spec into {player_id: personality_name}.
 
+    Special keyword 'random' returns an empty dict → all players random.
     Invalid items (missing '=', non-numeric or out-of-range id, empty name)
     are skipped silently — those players fall back to random assignment.
     """
+    spec = spec.strip()
+    if spec.lower() == "random":
+        return {}
     result = {}
     for item in spec.split(","):
         if "=" not in item:
@@ -281,6 +286,7 @@ def main():
   python run.py --cli --provider qwen        # CLI 模式直接运行一局
   python run.py --cli --provider deepseek --thinking  # CLI + 深度思考
   python run.py --cli --personalities "1=戏精影帝,5=理性分析师"  # CLI 指定玩家性格
+	python run.py --cli --personalities random                     # 全部随机
         """,
     )
     parser.add_argument(
@@ -298,7 +304,7 @@ def main():
     parser.add_argument(
         "--personalities", default="", metavar="SPEC",
         help="仅 CLI：指定玩家性格，格式 '1=戏精影帝,5=理性分析师'（玩家号=性格名，"
-             "逗号分隔）；未指定或名字无效的玩家随机分配")
+             "逗号分隔）；传 'random' 全部随机；未指定名字无效的玩家随机分配")
     parser.add_argument(
         "--list", action="store_true",
         help="List all completed games and exit")
@@ -313,6 +319,15 @@ def main():
         help="Web server host (default: 127.0.0.1)")
 
     args = parser.parse_args()
+
+    # Validate --model if provided (CLI only)
+    if args.model.strip():
+        from werewolf.llm import VALID_MODELS
+        valid = VALID_MODELS.get(args.provider, [])
+        if args.model.strip() not in valid:
+            print(f"错误: --model '{args.model.strip()}' 在 {args.provider} 下无效。")
+            print(f"有效模型: {', '.join(valid)}")
+            sys.exit(1)
 
     print_banner(args.provider, args.thinking)
     check_env(args.provider)

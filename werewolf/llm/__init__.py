@@ -3,6 +3,13 @@
 from abc import ABC, abstractmethod
 from openai import AsyncOpenAI
 
+# Valid model names per provider.
+# Must stay in sync with the frontend dropdown in werewolf/web/templates/index.html.
+VALID_MODELS: dict[str, list[str]] = {
+    "deepseek": ["deepseek-v4-flash", "deepseek-v4-pro"],
+    "qwen": ["qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max"],
+}
+
 
 class LLMClient(ABC):
     """Abstract LLM client interface (OpenAI-compatible)."""

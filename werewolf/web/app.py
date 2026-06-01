@@ -144,8 +144,18 @@ async def start_game(request: Request):
     game_config = _get_game_config()
     all_personalities = _load_personalities()
 
-    # Override model name if provided
+    # Override model name if provided (with server-side validation)
     if model_name.strip():
+        from werewolf.llm import VALID_MODELS
+        valid = VALID_MODELS.get(api_provider, [])
+        if model_name.strip() not in valid:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"模型名称 '{model_name.strip()}' 在"
+                                 f" {api_provider} 下无效。"
+                                 f"有效模型: {', '.join(valid)}"}
+            )
         api_config["model"] = model_name.strip()
 
     # Deep thinking settings
