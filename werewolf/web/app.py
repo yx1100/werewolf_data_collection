@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 
 import yaml
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
@@ -39,6 +39,23 @@ templates = Jinja2Templates(directory=str(templates_dir))
 static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+# —— Serve favicon & Apple touch icon at root (browser auto-requests) ——
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse(str(static_dir / "favicon.ico"))
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+async def apple_touch_icon():
+    return FileResponse(str(static_dir / "apple-touch-icon.png"))
+
+
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def apple_touch_icon_precomposed():
+    return FileResponse(str(static_dir / "apple-touch-icon.png"))
+
 
 # In-memory game registry
 active_games: dict[str, Game] = {}
