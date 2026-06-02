@@ -220,7 +220,7 @@ CLI 和 Web UI 均会对用户输入的模型名称进行验证。支持的模�
 | 提供商 | 支持模型 |
 |--------|---------|
 | DeepSeek | `deepseek-v4-flash`、`deepseek-v4-pro` |
-| Qwen | `qwen3.6-flash`、`qwen3.6-plus`、`qwen3.7-max` |
+| Qwen | `qwen3.6-flash`、`qwen3.7-plus`、`qwen3.7-max` |
 
 CLI 模式下，若 `--model` 指定了无效模型名，程序会报错并立即退出。Web UI 在服务端同样会校验，返回 400 错误。
 

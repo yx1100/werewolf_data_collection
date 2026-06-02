@@ -7,7 +7,7 @@ from openai import AsyncOpenAI
 # Must stay in sync with the frontend dropdown in werewolf/web/templates/index.html.
 VALID_MODELS: dict[str, list[str]] = {
     "deepseek": ["deepseek-v4-flash", "deepseek-v4-pro"],
-    "qwen": ["qwen3.6-flash", "qwen3.6-plus", "qwen3.7-max"],
+    "qwen": ["qwen3.6-flash", "qwen3.7-plus", "qwen3.7-max"],
 }
 
 
