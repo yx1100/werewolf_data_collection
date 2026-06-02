@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from .state import GameState, GamePhase, PlayerState
@@ -27,6 +28,11 @@ class Game:
         self.free_discussion_rounds = config.get("free_discussion_rounds", 2)
         self.witch_self_save_first_night = config.get(
             "witch_self_save_first_night", True)
+
+        # Game timing
+        self.start_time = time.time()
+        self.end_time: float | None = None
+        self.duration_seconds: float | None = None
 
         # Pause / Stop controls
         self._pause_event = asyncio.Event()
@@ -117,11 +123,16 @@ class Game:
 
             await self._delay()
 
+        # Record game end time and duration
+        self.end_time = time.time()
+        self.duration_seconds = self.end_time - self.start_time
+
         # Finalize: collect data
         if self.collector:
-            self.collector.finalize(self.state)
+            self.collector.finalize(self.state, self.duration_seconds)
 
-        logger.info(f"Game {self.game_id} over. Winner: {self.state.winner}")
+        logger.info(f"Game {self.game_id} over. Winner: {self.state.winner}. "
+                    f"Duration: {self.duration_seconds:.1f}s")
         return self.state
 
     # ── Night Phase ──────────────────────────────────────────────

@@ -20,9 +20,11 @@ class GameCollector:
         self.api_provider = api_provider
         self.model = model
         self.output_path: Path | None = None
+        self.duration_seconds: float | None = None
 
-    def finalize(self, state: GameState) -> str:
+    def finalize(self, state: GameState, duration_seconds: float | None = None) -> str:
         """Write complete game data to JSON. Returns the file path."""
+        self.duration_seconds = duration_seconds
         game_data = self._build_game_data(state)
         output_path = self._get_output_path(state.game_id)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,6 +46,14 @@ class GameCollector:
                 "personality": ps.personality,
             })
 
+        # Format duration for display
+        duration_display = None
+        if self.duration_seconds is not None:
+            total_seconds = int(self.duration_seconds)
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            duration_display = f"{minutes}分{seconds}秒"
+
         return {
             "game_id": state.game_id,
             "timestamp": datetime.now().isoformat(),
@@ -60,6 +70,8 @@ class GameCollector:
                     str(pid): ps.role
                     for pid, ps in state.players.items()
                 },
+                "duration_seconds": self.duration_seconds,
+                "duration_display": duration_display,
             },
         }
 

@@ -178,7 +178,7 @@
             <h2>📊 已完成游戏</h2>
             {% if completed_games %}
             <table>
-                <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>结果</th><th>操作</th></tr></thead>
+                <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>时长</th><th>结果</th><th>操作</th></tr></thead>
                 <tbody>
                 {% for g in completed_games %}
                 <tr>
@@ -186,6 +186,7 @@
                     <td>{{ g.display_time }}</td>
                     <td>{{ g.api_provider }}</td>
                     <td>{{ g.rounds }} 轮</td>
+                    <td>{{ g.duration_display or 'NULL' }}</td>
                     <td class="{% if g.winner == 'good' %}winner-good{% else %}winner-werewolf{% endif %}">
                         {% if g.winner == 'good' %}好人胜{% else %}狼人胜{% endif %}
                     </td>

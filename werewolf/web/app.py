@@ -256,11 +256,14 @@ async def game_page(request: Request, game_id: str):
         return HTMLResponse("Game not found", status_code=404)
 
     player_assignments = getattr(game, "_player_assignments", [])
+    # Pass game start time for timer display
+    game_start_time = getattr(game, "start_time", None)
 
     return templates.TemplateResponse("game.html", {
         "request": request,
         "game_id": game_id,
         "players": player_assignments,
+        "game_start_time": game_start_time,
     })
 
 
@@ -489,13 +492,17 @@ def _list_completed_games() -> list[dict]:
                         display_time = dt.strftime("%Y-%m-%d %H:%M:%S")
                     except Exception:
                         display_time = ts.replace("T", " ")
+                    # Get duration info
+                    result = game_data.get("result", {})
+                    duration_display = result.get("duration_display")
                     games.append({
                         "game_id": game_data.get("game_id", game_dir.name),
                         "timestamp": game_data.get("timestamp", ""),
                         "display_time": display_time,
-                        "winner": game_data.get("result", {}).get("winner", "?"),
+                        "winner": result.get("winner", "?"),
                         "api_provider": game_data.get("config", {}).get("api_provider", "?"),
                         "rounds": len(game_data.get("phases", [])) // 6,
+                        "duration_display": duration_display,
                         "data_path": str(data_file),
                     })
                 except Exception:
