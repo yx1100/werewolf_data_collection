@@ -330,6 +330,29 @@ async def game_page(request: Request, game_id: str):
     })
 
 
+@app.get("/game/{game_id}/replay", response_class=HTMLResponse)
+async def game_replay(request: Request, game_id: str):
+    """Replay a completed game — same UI as live view, static data."""
+    for game_info in _list_completed_games():
+        if game_info["game_id"] == game_id:
+            data_path = Path(game_info["data_path"])
+            if data_path.exists():
+                with open(data_path, encoding="utf-8") as f:
+                    game_data = json.load(f)
+                players = game_data.get("config", {}).get("players", [])
+                # Normalise id → player_id for renderPlayers()
+                for p in players:
+                    if "player_id" not in p:
+                        p["player_id"] = p.get("id")
+                return templates.TemplateResponse(request, "game.html", {
+                    "game_id": game_id,
+                    "players": players,
+                    "is_replay": True,
+                    "game_data_json": json.dumps(game_data, ensure_ascii=False),
+                })
+    return HTMLResponse("Game not found", status_code=404)
+
+
 @app.get("/game/{game_id}/stream")
 async def game_stream(game_id: str) -> StreamingResponse:
     """SSE endpoint for live game event streaming.

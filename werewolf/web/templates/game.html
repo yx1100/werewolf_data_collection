@@ -78,15 +78,19 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🐺 游戏 — {{ game_id }}</h1>
+            <h1>🐺 {% if is_replay %}回顾{% else %}游戏{% endif %} — {{ game_id }}</h1>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                {% if not is_replay %}
                 <div class="game-timer" id="game-timer">
                     <span class="timer-icon">⏱️</span>
                     <span id="timer-display">00:00</span>
                 </div>
+                {% endif %}
+                {% if not is_replay %}
                 <button id="btn-pause" onclick="pauseGame()" style="padding:6px 14px; border-radius:6px; border:1px solid #23252a; background:transparent; color:#d0d6e0; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">⏸️ 暂停</button>
                 <button id="btn-resume" onclick="resumeGame()" style="display:none; padding:6px 14px; border-radius:6px; border:1px solid #27a644; background:transparent; color:#27a644; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">▶️ 继续</button>
                 <button id="btn-stop" onclick="stopGame()" style="padding:6px 14px; border-radius:6px; border:1px solid #e94560; background:transparent; color:#e94560; cursor:pointer; font-size:0.8125rem; font-weight:500; font-family:'Inter',sans-serif;">⏹️ 停止</button>
+                {% endif %}
                 <a href="/">← 返回大厅</a>
             </div>
         </div>
@@ -108,7 +112,11 @@
 
     <script>
         const gameId = "{{ game_id }}";
-        const playerRoles = {};
+        const IS_REPLAY = {{ 'true' if is_replay else 'false' }};
+
+        {% if is_replay %}
+        const REPLAY_DATA = {{ game_data_json|safe }};
+        {% endif %}
 
         // Game timer — uses client-side time, started by SSE events
         let gameStartMs = 0;   // game start time in client ms (Date.now())
@@ -351,65 +359,67 @@
                 '</div>';
         }
 
-        // SSE connection
-        const evtSource = new EventSource('/game/' + gameId + '/stream');
-        evtSource.onmessage = function(e) {
-            try {
-                const event = JSON.parse(e.data);
-                if (event.type === 'heartbeat') return;
-                if (event.type === 'game_started') {
-                    renderPlayers(event.players);
-                    document.getElementById('status').innerHTML = '游戏开始！';
-                    startTimer(event.game_start_time);
-                } else if (event.type === 'game_state') {
-                    renderPlayers(event.players);
-                    if (event.dead_players && event.dead_players.length) {
-                        event.dead_players.forEach(function(pid) { markPlayerDead(pid); });
-                    }
-                    if (event.recent_events && event.recent_events.length) {
-                        event.recent_events.forEach(function(evt) { addEvent(evt); });
-                    }
-                    document.getElementById('status').innerHTML = '游戏进行中...';
-                    if (!timerInterval && event.game_start_time) {
+        // SSE connection (live game only)
+        if (!IS_REPLAY) {
+            const evtSource = new EventSource('/game/' + gameId + '/stream');
+            evtSource.onmessage = function(e) {
+                try {
+                    const event = JSON.parse(e.data);
+                    if (event.type === 'heartbeat') return;
+                    if (event.type === 'game_started') {
+                        renderPlayers(event.players);
+                        document.getElementById('status').innerHTML = '游戏开始！';
                         startTimer(event.game_start_time);
+                    } else if (event.type === 'game_state') {
+                        renderPlayers(event.players);
+                        if (event.dead_players && event.dead_players.length) {
+                            event.dead_players.forEach(function(pid) { markPlayerDead(pid); });
+                        }
+                        if (event.recent_events && event.recent_events.length) {
+                            event.recent_events.forEach(function(evt) { addEvent(evt); });
+                        }
+                        document.getElementById('status').innerHTML = '游戏进行中...';
+                        if (!timerInterval && event.game_start_time) {
+                            startTimer(event.game_start_time);
+                        }
+                    } else if (event.type === 'game_ended') {
+                        document.getElementById('status').innerHTML = '✅ 游戏结束';
+                        document.getElementById('btn-pause').style.display = 'none';
+                        document.getElementById('btn-resume').style.display = 'none';
+                        document.getElementById('btn-stop').style.display = 'none';
+                        stopTimer();
+                        setTimeout(function() { evtSource.close(); }, 3000);
+                    } else if (event.type === 'game_paused') {
+                        addEvent(event);
+                        document.getElementById('status').innerHTML = '⏸️ 游戏已暂停';
+                        document.getElementById('btn-pause').style.display = 'none';
+                        document.getElementById('btn-resume').style.display = '';
+                        pauseTimer();
+                    } else if (event.type === 'game_resumed') {
+                        addEvent(event);
+                        document.getElementById('status').innerHTML = '游戏进行中...';
+                        document.getElementById('btn-pause').style.display = '';
+                        document.getElementById('btn-resume').style.display = 'none';
+                        resumeTimer();
+                    } else if (event.type === 'game_stopped') {
+                        addEvent(event);
+                        document.getElementById('status').innerHTML = '⏹️ 游戏已停止';
+                        document.getElementById('btn-pause').style.display = 'none';
+                        document.getElementById('btn-resume').style.display = 'none';
+                        document.getElementById('btn-stop').style.display = 'none';
+                        stopTimer();
+                        evtSource.close();
+                    } else {
+                        addEvent(event);
                     }
-                } else if (event.type === 'game_ended') {
-                    document.getElementById('status').innerHTML = '✅ 游戏结束';
-                    document.getElementById('btn-pause').style.display = 'none';
-                    document.getElementById('btn-resume').style.display = 'none';
-                    document.getElementById('btn-stop').style.display = 'none';
-                    stopTimer();
-                    setTimeout(function() { evtSource.close(); }, 3000);
-                } else if (event.type === 'game_paused') {
-                    addEvent(event);
-                    document.getElementById('status').innerHTML = '⏸️ 游戏已暂停';
-                    document.getElementById('btn-pause').style.display = 'none';
-                    document.getElementById('btn-resume').style.display = '';
-                    pauseTimer();
-                } else if (event.type === 'game_resumed') {
-                    addEvent(event);
-                    document.getElementById('status').innerHTML = '游戏进行中...';
-                    document.getElementById('btn-pause').style.display = '';
-                    document.getElementById('btn-resume').style.display = 'none';
-                    resumeTimer();
-                } else if (event.type === 'game_stopped') {
-                    addEvent(event);
-                    document.getElementById('status').innerHTML = '⏹️ 游戏已停止';
-                    document.getElementById('btn-pause').style.display = 'none';
-                    document.getElementById('btn-resume').style.display = 'none';
-                    document.getElementById('btn-stop').style.display = 'none';
-                    stopTimer();
-                    evtSource.close();
-                } else {
-                    addEvent(event);
+                } catch (err) {
+                    console.error('Parse error:', err);
                 }
-            } catch (err) {
-                console.error('Parse error:', err);
-            }
-        };
-        evtSource.onerror = function() {
-            document.getElementById('status').innerHTML = '连接中断，尝试重连...';
-        };
+            };
+            evtSource.onerror = function() {
+                document.getElementById('status').innerHTML = '连接中断，尝试重连...';
+            };
+        }
 
         async function pauseGame() {
             await fetch('/game/' + gameId + '/pause', { method: 'POST' });
@@ -421,6 +431,101 @@
             if (confirm('确定要停止游戏吗？')) {
                 await fetch('/game/' + gameId + '/stop', { method: 'POST' });
             }
+        }
+
+        // ── Replay mode: render all saved events at once ─────────
+        function renderReplay(data) {
+            var players = (data.config && data.config.players) || [];
+            renderPlayers(players);
+            document.getElementById('status').innerHTML = '📼 游戏回顾';
+
+            var phases = data.phases || [];
+            for (var i = 0; i < phases.length; i++) {
+                var p = phases[i];
+                // Phase change marker
+                addEvent({type: 'phase_change', phase: p.phase, round: p.round,
+                          message: p.message || ''});
+
+                // DAY_ANNOUNCE: render deaths + night summary
+                if (p.phase === 'DAY_ANNOUNCE') {
+                    var nsData = p.night_summary;
+                    var nsList = Array.isArray(nsData) ? nsData : (nsData && nsData.data) || [];
+                    addEvent({type: 'day_announce', message: p.message || '',
+                              night_summary: nsList,
+                              dead_players: (p.events || []).filter(function(e){return e.type==='death'}).map(function(e){return e.player_id;})});
+                }
+
+                // DAY_DISCUSSION / DAY_FREE_DISCUSSION: render speeches
+                if (p.phase === 'DAY_DISCUSSION' || p.phase === 'DAY_FREE_DISCUSSION') {
+                    var speeches = p.speeches || [];
+                    for (var j = 0; j < speeches.length; j++) {
+                        var s = speeches[j];
+                        if (s.visibility !== 'private') {
+                            addEvent({type: 'speech', player_id: s.player_id,
+                                      speech: s.speech, phase: p.phase.toLowerCase()});
+                        }
+                    }
+                }
+
+                // VOTING: render vote result
+                if (p.phase === 'VOTING') {
+                    var result = p.result || {};
+                    var voteEvents = [];
+                    (p.votes || []).forEach(function(v) {
+                        if (v.visibility !== 'private') {
+                            voteEvents.push({voter_id: v.voter_id, target: v.target});
+                        }
+                    });
+                    var eliminated = result.eliminated;
+                    addEvent({type: 'vote_result',
+                              message: eliminated ? (eliminated + '号玩家被投票放逐。') : '投票平票，无人被放逐。',
+                              eliminated: eliminated, votes: voteEvents,
+                              tally: result.vote_count || {}});
+                }
+
+                // DAY_RESULT: render elimination, last words, hunter
+                if (p.phase === 'DAY_RESULT') {
+                    var events = p.events || [];
+                    for (var k = 0; k < events.length; k++) {
+                        var ev = events[k];
+                        if (ev.visibility !== 'private') {
+                            if (ev.type === 'elimination') {
+                                addEvent({type: 'elimination', player_id: ev.player_id, message: ev.player_id + '号玩家被放逐。'});
+                            } else if (ev.type === 'last_words') {
+                                addEvent({type: 'last_words', player_id: ev.player_id, message: ev.player_id + '号玩家遗言：' + (ev.speech || '')});
+                            } else if (ev.type === 'hunter_shoot') {
+                                addEvent({type: 'hunter_shoot', player_id: ev.player_id, target: ev.target,
+                                          message: '🔫 猎人' + ev.player_id + '号开枪带走' + ev.target + '号玩家！'});
+                            }
+                        }
+                    }
+                }
+
+                // GAME_OVER: settlement
+                if (p.phase === 'GAME_OVER') {
+                    var winner = p.winner || (data.result && data.result.winner) || '';
+                    var round = p.round || 0;
+                    var resultSection = data.result || {};
+                    var roles = resultSection.roles_revealed || {};
+                    var surviving = resultSection.surviving_players || [];
+                    addEvent({type: 'game_over', winner: winner, round: round,
+                              roles: roles, surviving: surviving});
+                }
+            }
+
+            // Final: reveal all roles
+            var resultSection = data.result || {};
+            var roles = resultSection.roles_revealed || {};
+            var surviving = resultSection.surviving_players || [];
+            addEvent({type: 'roles_revealed', roles: roles, winner: resultSection.winner || '', round: 0});
+
+            document.getElementById('status').innerHTML = '✅ 游戏结束 — 回顾';
+        }
+
+        if (IS_REPLAY) {
+            document.addEventListener('DOMContentLoaded', function() {
+                renderReplay(REPLAY_DATA);
+            });
         }
     </script>
 </body>

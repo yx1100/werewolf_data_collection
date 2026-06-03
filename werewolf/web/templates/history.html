@@ -46,7 +46,7 @@
                     <td class="{% if g.winner == 'good' %}winner-good{% else %}winner-werewolf{% endif %}">
                         {% if g.winner == 'good' %}好人胜{% else %}狼人胜{% endif %}
                     </td>
-                    <td><a href="/game/{{ g.game_id }}/data" class="btn">查看数据</a>
+                    <td><a href="/game/{{ g.game_id }}/replay" class="btn">回顾</a>
                         <button class="btn btn-danger" onclick="deleteGame('{{ g.game_id }}')">删除</button></td>
                 </tr>
                 {% endfor %}

@@ -192,7 +192,7 @@
                     <td class="{% if g.winner == 'good' %}winner-good{% else %}winner-werewolf{% endif %}">
                         {% if g.winner == 'good' %}好人胜{% else %}狼人胜{% endif %}
                     </td>
-                    <td><a href="/game/{{ g.game_id }}/data" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">查看数据</a>
+                    <td><a href="/game/{{ g.game_id }}/replay" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">回顾</a>
                         <button class="btn btn-sm btn-danger" onclick="deleteGame('{{ g.game_id }}')">删除</button></td>
                 </tr>
                 {% endfor %}
@@ -287,7 +287,7 @@
             '<td>' + g.rounds + ' 轮</td>' +
             '<td>' + (g.duration_display || '') + '</td>' +
             '<td class="' + winnerCls + '">' + winnerLabel + '</td>' +
-            '<td><a href="/game/' + g.game_id + '/data" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">查看数据</a> ' +
+            '<td><a href="/game/' + g.game_id + '/replay" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">回顾</a> ' +
             '<button class="btn btn-sm btn-danger" onclick="deleteGame(\'' + g.game_id + '\')">删除</button></td>';
         tbody.insertBefore(tr, tbody.firstChild);
     }
