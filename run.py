@@ -248,7 +248,7 @@ def list_completed_games():
                         "display_time": display_time,
                         "winner": game_data.get("result", {}).get("winner", "?"),
                         "api_provider": game_data.get("config", {}).get("api_provider", "?"),
-                        "rounds": len(game_data.get("phases", [])) // 6,
+                        "rounds": max((p.get("round", 0) for p in game_data.get("phases", [])), default=0),
                         "data_path": str(data_file),
                     })
                 except Exception:

@@ -665,7 +665,7 @@ def _list_completed_games() -> list[dict]:
                         "display_time": display_time,
                         "winner": result.get("winner", "?"),
                         "api_provider": game_data.get("config", {}).get("api_provider", "?"),
-                        "rounds": len(game_data.get("phases", [])) // 6,
+                        "rounds": max((p.get("round", 0) for p in game_data.get("phases", [])), default=0),
                         "duration_display": duration_display,
                         "data_path": str(data_file),
                     })
