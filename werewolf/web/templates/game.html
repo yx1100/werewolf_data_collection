@@ -439,17 +439,45 @@
             renderPlayers(players);
             document.getElementById('status').innerHTML = '📼 游戏回顾';
 
-            // Synthetic game_started to show player roster in event log
-            var roleNameMap = {werewolf:'🐺 狼人', seer:'🔮 预言家', witch:'🧪 女巫', hunter:'🔫 猎人', villager:'👤 平民'};
-            var playerList = players.map(function(p){return p.player_id+'号（'+ (roleNameMap[p.role]||p.role) +'）';}).join('、');
-            addEvent({type:'phase_change', phase:'游戏开始', message:'🎮 游戏开始！角色分配：'+playerList});
-
             var phases = data.phases || [];
             for (var i = 0; i < phases.length; i++) {
                 var p = phases[i];
                 // Phase change marker
-                addEvent({type: 'phase_change', phase: p.phase, round: p.round,
-                          message: p.message || ''});
+                var phaseLabel = {NIGHT:'🌙 夜晚阶段', DAY_ANNOUNCE:'☀️ 天亮',
+                    DAY_DISCUSSION:'📢 顺序发言', DAY_FREE_DISCUSSION:'💬 自由讨论',
+                    VOTING:'🗳️ 投票阶段', DAY_RESULT:'📋 放逐结果', GAME_OVER:'🏆 游戏结束'};
+                addEvent({type: 'phase_change',
+                    phase: (phaseLabel[p.phase] || p.phase),
+                    round: p.round, message: ''});
+
+                // NIGHT: render werewolf chat + actions
+                if (p.phase === 'NIGHT') {
+                    var chat = p.werewolf_chat || [];
+                    for (var c = 0; c < chat.length; c++) {
+                        addEvent({type: 'werewolf_chat', player_id: chat[c].player_id,
+                                  message: chat[c].message});
+                    }
+                    var actions = p.actions || [];
+                    for (var a = 0; a < actions.length; a++) {
+                        var act = actions[a];
+                        var actMsg = '';
+                        if (act.action === 'kill') {
+                            actMsg = '🐺 狼人决定击杀 ' + act.target + ' 号玩家';
+                        } else if (act.action === 'kill_vote') {
+                            actMsg = '🐺 ' + act.player_id + '号狼人投票击杀 ' + act.target + ' 号';
+                        } else if (act.role === 'seer' && act.action === 'check') {
+                            actMsg = '🔮 预言家查验了 ' + act.target + ' 号玩家（结果：' + (act.result || '?') + '）';
+                        } else if (act.role === 'witch') {
+                            if (act.action === 'use_antidote') actMsg = '🧪 女巫使用解药，救活 ' + act.target + ' 号';
+                            else if (act.action === 'use_poison') actMsg = '🧪 女巫使用毒药，毒杀 ' + act.target + ' 号';
+                            else if (act.action === 'pass_antidote') actMsg = '🧪 女巫没有使用解药';
+                            else if (act.action === 'pass_poison') actMsg = '🧪 女巫没有使用毒药';
+                        }
+                        if (actMsg) {
+                            addEvent({type: 'werewolf_chat', player_id: act.player_id || 0, message: actMsg});
+                        }
+                    }
+                }
 
                 // DAY_ANNOUNCE: render deaths + night summary
                 if (p.phase === 'DAY_ANNOUNCE') {
