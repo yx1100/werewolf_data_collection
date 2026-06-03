@@ -506,18 +506,24 @@
                     var winner = p.winner || (data.result && data.result.winner) || '';
                     var round = p.round || 0;
                     var resultSection = data.result || {};
-                    var roles = resultSection.roles_revealed || {};
                     var surviving = resultSection.surviving_players || [];
+
+                    // Convert roles_revealed from {"1": "werewolf"} to
+                    // {"1": {role: "werewolf", alive: bool}} format expected by renderSettlement
+                    var rawRoles = resultSection.roles_revealed || {};
+                    var roles = {};
+                    Object.keys(rawRoles).forEach(function(pid) {
+                        var roleName = rawRoles[pid];
+                        roles[pid] = {
+                            role: roleName,
+                            alive: surviving.indexOf(parseInt(pid)) !== -1
+                        };
+                    });
+
                     addEvent({type: 'game_over', winner: winner, round: round,
                               roles: roles, surviving: surviving});
                 }
             }
-
-            // Final: reveal all roles
-            var resultSection = data.result || {};
-            var roles = resultSection.roles_revealed || {};
-            var surviving = resultSection.surviving_players || [];
-            addEvent({type: 'roles_revealed', roles: roles, winner: resultSection.winner || '', round: 0});
 
             document.getElementById('status').innerHTML = '✅ 游戏结束 — 回顾';
         }
