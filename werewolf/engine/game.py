@@ -399,7 +399,9 @@ class Game:
         for record in self.state.phase_records:
             phase = record["phase"]
             if phase == "DAY_ANNOUNCE":
-                events.extend(record.get("events", []))
+                for e in record.get("events", []):
+                    if e.get("visibility") != "private":
+                        events.append(e)
             elif phase in ("DAY_DISCUSSION", "DAY_FREE_DISCUSSION"):
                 for s in record.get("speeches", []):
                     if s.get("visibility") != "private":
@@ -496,7 +498,6 @@ class Game:
         self.state.push_event({
             "type": "day_announce",
             "message": msg,
-            "night_summary": night_summary,
             "dead_players": [d["player_id"] for d in deaths],
         })
 
@@ -511,7 +512,7 @@ class Game:
             "phase": "DAY_ANNOUNCE",
             "round": self.state.round,
             "message": msg,
-            "night_summary": night_summary,
+            "night_summary": {"data": night_summary, "visibility": "private"},
             "events": [
                 {"type": "death", "player_id": d["player_id"],
                  "cause": d["cause"], "visibility": "public"}
@@ -942,14 +943,12 @@ class Game:
                     actions = r.get("actions", [])
                     break
 
-        # Werewolf kill
+        # Werewolf kill (no role — role is private)
         for a in actions:
             if a.get("action") == "kill" and a.get("role") == "werewolf":
                 target = a.get("target")
                 if target:
-                    target_role = self.state.players[target].role
-                    role_zh = _ROLE_ZH.get(target_role, target_role)
-                    summary.append(f"狼人决定击杀 {target} 号玩家（{role_zh}）")
+                    summary.append(f"狼人决定击杀 {target} 号玩家")
                 break
 
         # Seer check
@@ -970,18 +969,14 @@ class Game:
                 elif a.get("action") == "pass_poison":
                     summary.append("女巫没有使用毒药")
 
-        # Death results
+        # Death results (no role — role is private)
         for d in deaths:
             cause = d.get("cause", "")
             pid = d["player_id"]
             if cause == "werewolf_kill":
-                death_role = self.state.players[pid].role
-                death_role_zh = _ROLE_ZH.get(death_role, death_role)
-                summary.append(f"{pid} 号玩家（{death_role_zh}）被狼人杀害")
+                summary.append(f"{pid} 号玩家被狼人杀害")
             elif cause == "witch_poison":
-                poison_role = self.state.players[pid].role
-                poison_role_zh = _ROLE_ZH.get(poison_role, poison_role)
-                summary.append(f"{pid} 号玩家（{poison_role_zh}）被女巫毒杀")
+                summary.append(f"{pid} 号玩家被女巫毒杀")
 
         return summary
 
