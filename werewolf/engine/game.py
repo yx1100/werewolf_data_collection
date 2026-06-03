@@ -510,6 +510,8 @@ class Game:
         record = {
             "phase": "DAY_ANNOUNCE",
             "round": self.state.round,
+            "message": msg,
+            "night_summary": night_summary,
             "events": [
                 {"type": "death", "player_id": d["player_id"],
                  "cause": d["cause"], "visibility": "public"}
