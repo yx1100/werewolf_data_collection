@@ -439,6 +439,11 @@
             renderPlayers(players);
             document.getElementById('status').innerHTML = '📼 游戏回顾';
 
+            // Synthetic game_started to show player roster in event log
+            var roleNameMap = {werewolf:'🐺 狼人', seer:'🔮 预言家', witch:'🧪 女巫', hunter:'🔫 猎人', villager:'👤 平民'};
+            var playerList = players.map(function(p){return p.player_id+'号（'+ (roleNameMap[p.role]||p.role) +'）';}).join('、');
+            addEvent({type:'phase_change', phase:'游戏开始', message:'🎮 游戏开始！角色分配：'+playerList});
+
             var phases = data.phases || [];
             for (var i = 0; i < phases.length; i++) {
                 var p = phases[i];
