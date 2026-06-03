@@ -767,14 +767,12 @@ class Game:
             events.append({
                 "type": "elimination",
                 "player_id": eliminated,
-                "role": player.role,
                 "visibility": "public",
             })
             self.state.push_event({
                 "type": "elimination",
                 "player_id": eliminated,
-                "role": player.role,
-                "message": f"{eliminated}号玩家（{_ROLE_ZH.get(player.role, player.role)}）被放逐。",
+                "message": f"{eliminated}号玩家被放逐。",
             })
 
             # Last words from eliminated player
@@ -831,14 +829,13 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": eliminated,
                             "target": target,
-                            "target_role": target_player.role,
                             "visibility": "public",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",
                             "player_id": eliminated,
                             "target": target,
-                            "message": f"🔫 猎人{eliminated}号开枪带走{target}号玩家（{_ROLE_ZH.get(target_player.role, target_player.role)}）！",
+                            "message": f"🔫 猎人{eliminated}号开枪带走{target}号玩家！",
                         })
 
         # Night-killed hunter: check if any dead hunter needs to shoot
@@ -867,14 +864,13 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": pid,
                             "target": target,
-                            "target_role": target_player.role,
                             "visibility": "public",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",
                             "player_id": pid,
                             "target": target,
-                            "message": f"🔫 猎人{pid}号开枪带走{target}号玩家（{_ROLE_ZH.get(target_player.role, target_player.role)}）！",
+                            "message": f"🔫 猎人{pid}号开枪带走{target}号玩家！",
                         })
                 ps.can_shoot = False  # clear flag after shooting
                 break  # only one hunter can die per round
