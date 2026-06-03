@@ -109,28 +109,36 @@
     <script>
         const gameId = "{{ game_id }}";
         const playerRoles = {};
-        const gameStartTime = {{ game_start_time or 'null' }};
 
-        // Game timer functionality
+        // Game timer — uses client-side time, started by SSE events
+        let gameStartMs = 0;   // game start time in client ms (Date.now())
         let timerInterval = null;
         let isPaused = false;
-        let pausedElapsed = 0;
 
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
+        function formatTime(totalSeconds) {
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = Math.floor(totalSeconds % 60);
             return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
         }
 
         function updateTimer() {
-            if (isPaused) return;
-            const now = Date.now() / 1000;
-            const elapsed = Math.floor(now - gameStartTime) + pausedElapsed;
-            document.getElementById('timer-display').textContent = formatTime(elapsed);
+            if (isPaused || !gameStartMs) return;
+            const elapsedSec = (Date.now() - gameStartMs) / 1000;
+            document.getElementById('timer-display').textContent = formatTime(elapsedSec);
         }
 
-        function startTimer() {
-            if (timerInterval) return;
+        function startTimer(serverStartMs) {
+            // serverStartMs: server's game start time in ms (Date.now() epoch)
+            // Since the server sends int(time.time() * 1000), same epoch as Date.now().
+            // For localhost use, client/server clocks are identical.
+            if (timerInterval) return;  // already running
+            if (serverStartMs) {
+                gameStartMs = serverStartMs;
+            } else {
+                // No server timestamp — use current client time
+                gameStartMs = Date.now();
+            }
+            isPaused = false;
             timerInterval = setInterval(updateTimer, 1000);
             updateTimer();
         }
@@ -149,11 +157,6 @@
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
-        }
-
-        // Start timer when game starts
-        if (gameStartTime) {
-            startTimer();
         }
 
         function renderPlayers(players) {
@@ -357,7 +360,7 @@
                 if (event.type === 'game_started') {
                     renderPlayers(event.players);
                     document.getElementById('status').innerHTML = '游戏开始！';
-                    startTimer();
+                    startTimer(event.game_start_time);
                 } else if (event.type === 'game_state') {
                     renderPlayers(event.players);
                     if (event.dead_players && event.dead_players.length) {
@@ -367,6 +370,9 @@
                         event.recent_events.forEach(function(evt) { addEvent(evt); });
                     }
                     document.getElementById('status').innerHTML = '游戏进行中...';
+                    if (!timerInterval && event.game_start_time) {
+                        startTimer(event.game_start_time);
+                    }
                 } else if (event.type === 'game_ended') {
                     document.getElementById('status').innerHTML = '✅ 游戏结束';
                     document.getElementById('btn-pause').style.display = 'none';

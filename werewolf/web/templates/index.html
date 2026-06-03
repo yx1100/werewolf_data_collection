@@ -44,7 +44,7 @@
 
         <div class="card">
             <h2>🎮 开始新游戏</h2>
-            <form action="/game/start" method="post">
+            <form id="start-game-form">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="api_provider">选择模型提供商</label>
@@ -157,22 +157,24 @@
             </div>
         </div>
 
-        {% if active_games %}
         <div class="card">
-            <h2>进行中的游戏</h2>
+            <h2>🟢 进行中的游戏 <span id="active-count" style="font-weight:400;color:#8a8f98;font-size:0.8125rem;"></span></h2>
             <table>
-                <thead><tr><th>游戏 ID</th><th>操作</th></tr></thead>
-                <tbody>
-                {% for gid in active_games %}
-                <tr>
-                    <td><span class="active-badge">进行中</span> {{ gid }}</td>
-                    <td><a href="/game/{{ gid }}" class="btn btn-primary btn-sm">观看</a></td>
+                <thead><tr><th>游戏 ID</th><th>阶段</th><th>轮次</th><th>存活</th><th>操作</th></tr></thead>
+                <tbody id="active-games-body">
+                {% for g in active_games %}
+                <tr data-game-id="{{ g.game_id }}">
+                    <td>{% if g.is_paused %}⏸️{% else %}▶️{% endif %} {{ g.game_id }}</td>
+                    <td>{{ g.phase_zh }}</td>
+                    <td>第 {{ g.round }} 轮</td>
+                    <td>{{ g.alive_count }}/{{ g.total_players }}</td>
+                    <td><a href="/game/{{ g.game_id }}" class="btn btn-primary btn-sm">观看</a></td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
+            <p id="no-active-games" class="empty" style="display:{% if active_games %}none{% else %}block{% endif %};">暂无进行中的游戏</p>
         </div>
-        {% endif %}
 
         <div class="card">
             <h2>📊 已完成游戏</h2>
@@ -203,11 +205,139 @@
     </div>
 
     <script>
+    // ── Toast notifications ────────────────────────────────────────
+    function showToast(msg) {
+        var existing = document.getElementById('toast');
+        if (existing) existing.remove();
+        var toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#141516;border:1px solid #27a644;color:#f7f8f8;padding:12px 24px;border-radius:8px;font-size:0.875rem;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.4);transition:opacity 0.3s;';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 4000);
+    }
+
+    // ── AJAX game start ────────────────────────────────────────────
+    document.getElementById('start-game-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = '正在开始...';
+
+        try {
+            var resp = await fetch('/game/start', {
+                method: 'POST',
+                body: new FormData(this),
+            });
+            if (!resp.ok) {
+                var err = await resp.json();
+                showToast('启动失败: ' + (err.error || '未知错误'));
+                return;
+            }
+            var result = await resp.json();
+            if (result.status === 'started') {
+                showToast('游戏 ' + result.game_id + ' 已成功启动！');
+            }
+        } catch (err) {
+            showToast('启动失败: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '开始游戏';
+        }
+    });
+
+    // ── Active games table (dynamic) ───────────────────────────────
+    function renderActiveGamesTable(games) {
+        var tbody = document.getElementById('active-games-body');
+        var emptyEl = document.getElementById('no-active-games');
+        if (!games || !games.length) {
+            tbody.innerHTML = '';
+            emptyEl.style.display = 'block';
+            document.getElementById('active-count').textContent = '';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        document.getElementById('active-count').textContent = '(' + games.length + ')';
+        tbody.innerHTML = games.map(function(g) {
+            var badge = g.is_paused ? '⏸️' : '▶️';
+            return '<tr data-game-id="' + g.game_id + '">' +
+                '<td>' + badge + ' ' + g.game_id + '</td>' +
+                '<td>' + (g.phase_zh || '') + '</td>' +
+                '<td>第 ' + g.round + ' 轮</td>' +
+                '<td>' + g.alive_count + '/' + g.total_players + '</td>' +
+                '<td><a href="/game/' + g.game_id + '" class="btn btn-primary btn-sm">观看</a></td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    // ── Lobby SSE — real-time active game updates ──────────────────
+    var lobbySource = null;
+
+    function connectLobbySSE() {
+        if (lobbySource) lobbySource.close();
+        lobbySource = new EventSource('/lobby/stream');
+
+        lobbySource.onmessage = function(e) {
+            try {
+                var event = JSON.parse(e.data);
+                if (event.type === 'lobby_snapshot') {
+                    renderActiveGamesTable(event.games);
+                } else if (event.type === 'game_started') {
+                    var tbody = document.getElementById('active-games-body');
+                    var emptyEl = document.getElementById('no-active-games');
+                    emptyEl.style.display = 'none';
+                    var existing = tbody.querySelector('tr[data-game-id="' + event.game_id + '"]');
+                    if (!existing) {
+                        var badge = event.is_paused ? '⏸️' : '▶️';
+                        var tr = document.createElement('tr');
+                        tr.setAttribute('data-game-id', event.game_id);
+                        tr.innerHTML = '<td>' + badge + ' ' + event.game_id + '</td>' +
+                            '<td>' + (event.phase_zh || '开始') + '</td>' +
+                            '<td>第 ' + (event.round || 1) + ' 轮</td>' +
+                            '<td>' + (event.alive_count || 9) + '/' + (event.total_players || 9) + '</td>' +
+                            '<td><a href="/game/' + event.game_id + '" class="btn btn-primary btn-sm">观看</a></td>';
+                        tbody.appendChild(tr);
+                    }
+                    // Update count
+                    var rows = tbody.querySelectorAll('tr[data-game-id]');
+                    document.getElementById('active-count').textContent = '(' + rows.length + ')';
+                } else if (event.type === 'game_update') {
+                    var tr = document.querySelector('tr[data-game-id="' + event.game_id + '"]');
+                    if (tr) {
+                        var badge = event.is_paused ? '⏸️' : '▶️';
+                        tr.cells[0].textContent = badge + ' ' + event.game_id;
+                        tr.cells[1].textContent = event.phase_zh || '';
+                        tr.cells[2].textContent = '第 ' + event.round + ' 轮';
+                        tr.cells[3].textContent = event.alive_count + '/' + event.total_players;
+                    }
+                } else if (event.type === 'game_ended' || event.type === 'game_stopped') {
+                    var tr = document.querySelector('tr[data-game-id="' + event.game_id + '"]');
+                    if (tr) tr.remove();
+                    var tbody = document.getElementById('active-games-body');
+                    var rows = tbody.querySelectorAll('tr[data-game-id]');
+                    document.getElementById('active-count').textContent = rows.length ? '(' + rows.length + ')' : '';
+                    if (!rows.length) {
+                        document.getElementById('no-active-games').style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                console.error('Lobby SSE parse error:', err);
+            }
+        };
+
+        lobbySource.onerror = function() {
+            console.log('Lobby SSE disconnected, will auto-reconnect...');
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', connectLobbySSE);
+
+    // ── Delete game ────────────────────────────────────────────────
     async function deleteGame(gameId) {
         if (!confirm('确定要删除游戏 ' + gameId + ' 的数据吗？此操作不可撤销。')) return;
         try {
-            const resp = await fetch('/game/' + gameId + '/data', { method: 'DELETE' });
-            const result = await resp.json();
+            var resp = await fetch('/game/' + gameId + '/data', { method: 'DELETE' });
+            var result = await resp.json();
             if (result.status === 'deleted') {
                 location.reload();
             } else {

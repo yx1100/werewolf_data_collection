@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from werewolf.engine.game import Game, GameStoppedError
 from werewolf.engine.roles import Role
+from werewolf.engine.state import GamePhase
 from werewolf.llm import create_llm_client
 from werewolf.agents.agent import create_agent_factory
 from werewolf.collector.collector import GameCollector
@@ -59,8 +60,56 @@ async def apple_touch_icon_precomposed():
 
 # In-memory game registry
 active_games: dict[str, Game] = {}
-game_event_queues: dict[str, asyncio.Queue] = {}
+game_event_queues: dict[str, list[asyncio.Queue]] = {}
 completed_games: list[dict] = []
+
+# Concurrency control
+_active_games_lock = asyncio.Lock()
+
+# Lobby SSE broadcast — one queue per connected lobby client
+_lobby_queues: set[asyncio.Queue] = set()
+_lobby_queues_lock = asyncio.Lock()
+
+
+# ── Helpers (data loading) ────────────────────────────────────────
+
+
+PHASE_NAMES_ZH = {
+    GamePhase.SETUP: "准备中",
+    GamePhase.NIGHT: "夜晚",
+    GamePhase.DAY_ANNOUNCE: "天亮",
+    GamePhase.DAY_DISCUSSION: "讨论",
+    GamePhase.DAY_FREE_DISCUSSION: "自由讨论",
+    GamePhase.VOTING: "投票",
+    GamePhase.DAY_RESULT: "放逐",
+    GamePhase.GAME_OVER: "结束",
+}
+
+
+def _get_active_game_info(game_id: str, game: Game) -> dict:
+    """Build a lightweight status snapshot for lobby display."""
+    return {
+        "game_id": game_id,
+        "phase": game.state.phase.value,
+        "phase_zh": PHASE_NAMES_ZH.get(game.state.phase, "未知"),
+        "round": game.state.round,
+        "alive_count": len(game.state.alive_players),
+        "total_players": len(game.state.players),
+        "start_time": int(getattr(game, 'start_time', 0) * 1000),
+        "is_paused": game.is_paused,
+    }
+
+
+async def _broadcast_lobby_event(event: dict):
+    """Push an event to every connected lobby SSE client."""
+    async with _lobby_queues_lock:
+        dead = set()
+        for q in _lobby_queues:
+            try:
+                q.put_nowait(dict(event))
+            except asyncio.QueueFull:
+                dead.add(q)
+        _lobby_queues.difference_update(dead)
 
 
 def _load_yaml(path: str) -> dict:
@@ -137,9 +186,11 @@ async def index(request: Request):
             "skill": ROLE_SKILLS_ZH[role],
             "count": 3 if role == Role.WEREWOLF or role == Role.VILLAGER else 1,
         })
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "active_games": list(active_games.keys()),
+    return templates.TemplateResponse(request, "index.html", {
+        "active_games": [
+            _get_active_game_info(gid, game)
+            for gid, game in list(active_games.items())
+        ],
         "completed_games": completed,
         "personalities": personalities,
         "roles_info": roles_info,
@@ -234,8 +285,9 @@ async def start_game(request: Request):
     )
 
     # Register game
-    active_games[game_id] = game
-    game_event_queues[game_id] = asyncio.Queue()
+    async with _active_games_lock:
+        active_games[game_id] = game
+    game_event_queues[game_id] = []
 
     # Store player assignments for UI
     game._player_assignments = player_assignments
@@ -243,9 +295,8 @@ async def start_game(request: Request):
     # Run game in background
     asyncio.create_task(_run_game(game_id))
 
-    # Redirect to game page
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=f"/game/{game_id}", status_code=303)
+    # Return JSON (client stays on lobby page)
+    return {"status": "started", "game_id": game_id}
 
 
 @app.get("/game/{game_id}", response_class=HTMLResponse)
@@ -256,68 +307,83 @@ async def game_page(request: Request, game_id: str):
         return HTMLResponse("Game not found", status_code=404)
 
     player_assignments = getattr(game, "_player_assignments", [])
-    # Pass game start time for timer display
-    game_start_time = getattr(game, "start_time", None)
 
-    return templates.TemplateResponse("game.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "game.html", {
         "game_id": game_id,
         "players": player_assignments,
-        "game_start_time": game_start_time,
     })
 
 
 @app.get("/game/{game_id}/stream")
 async def game_stream(game_id: str) -> StreamingResponse:
-    """SSE endpoint for live game event streaming."""
+    """SSE endpoint for live game event streaming.
+
+    Each connected client gets its own queue so events are broadcast
+    to all viewers (fan-out), not round-robin consumed.
+    """
     if game_id not in game_event_queues:
         return StreamingResponse(
             _empty_stream(),
             media_type="text/event-stream")
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        queue = game_event_queues[game_id]
+        my_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
 
-        # Send current state snapshot for reconnecting clients
-        game = active_games.get(game_id)
-        if game and game.state.phase.value != "setup":
-            dead = [pid for pid, ps in game.state.players.items() if not ps.is_alive]
-            all_events = getattr(game.state, 'events', [])
-            recent = all_events[-50:] if len(all_events) > 50 else all_events
-            yield f"data: {json.dumps({
-                'type': 'game_state',
-                'game_id': game_id,
-                'players': getattr(game, '_player_assignments', []),
-                'phase': game.state.phase.value,
-                'round': game.state.round,
-                'dead_players': dead,
-                'recent_events': recent,
-            }, ensure_ascii=False)}\n\n"
-            # Drain pending events already covered by recent_events replay
-            while not queue.empty():
+        # Register this client's queue
+        async with _active_games_lock:
+            if game_id in game_event_queues:
+                game_event_queues[game_id].append(my_queue)
+            else:
+                # Game ended between check and lock acquisition
+                yield f"data: {json.dumps({'type': 'game_ended', 'game_id': game_id})}\n\n"
+                return
+
+        try:
+            # Send current state snapshot for reconnecting clients
+            game = active_games.get(game_id)
+            if game and game.state.phase.value != "setup":
+                dead = [pid for pid, ps in game.state.players.items()
+                        if not ps.is_alive]
+                all_events = getattr(game.state, 'events', [])
+                recent = all_events[-50:] if len(all_events) > 50 else all_events
+                yield f"data: {json.dumps({
+                    'type': 'game_state',
+                    'game_id': game_id,
+                    'players': getattr(game, '_player_assignments', []),
+                    'phase': game.state.phase.value,
+                    'round': game.state.round,
+                    'dead_players': dead,
+                    'recent_events': recent,
+                    'game_start_time': int(getattr(game, 'start_time', 0) * 1000),
+                }, ensure_ascii=False)}\n\n"
+
+            while True:
                 try:
-                    queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-
-        while True:
-            try:
-                # Long timeout: LLM calls with deep thinking can be slow
-                event = await asyncio.wait_for(queue.get(), timeout=120)
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                if event.get("type") in ("game_ended", "game_stopped"):
-                    # Give client time to close first, then exit gracefully
-                    await asyncio.sleep(10)
-                    break
-                if event.get("type") == "error":
-                    await asyncio.sleep(5)
-                    break
-            except asyncio.TimeoutError:
-                # Keep connection alive
-                yield ": keepalive\n\n"
-                if game_id not in active_games:
-                    yield f"data: {json.dumps({'type': 'game_ended'})}\n\n"
-                    break
+                    # Long timeout: LLM calls with deep thinking can be slow
+                    event = await asyncio.wait_for(my_queue.get(), timeout=120)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    if event.get("type") in ("game_ended", "game_stopped"):
+                        await asyncio.sleep(10)
+                        break
+                    if event.get("type") == "error":
+                        await asyncio.sleep(5)
+                        break
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    if game_id not in active_games:
+                        yield f"data: {json.dumps({'type': 'game_ended'})}\n\n"
+                        break
+        finally:
+            # Unregister this client's queue
+            async with _active_games_lock:
+                queues = game_event_queues.get(game_id)
+                if queues:
+                    try:
+                        queues.remove(my_queue)
+                    except ValueError:
+                        pass
+                    if not queues:
+                        game_event_queues.pop(game_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -333,10 +399,49 @@ async def game_stream(game_id: str) -> StreamingResponse:
 async def history(request: Request):
     """Browse completed games."""
     completed = _list_completed_games()
-    return templates.TemplateResponse("history.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "history.html", {
         "games": completed,
     })
+
+
+@app.get("/lobby/stream")
+async def lobby_stream() -> StreamingResponse:
+    """SSE endpoint for real-time lobby updates (active game list)."""
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        my_queue: asyncio.Queue = asyncio.Queue()
+        async with _lobby_queues_lock:
+            _lobby_queues.add(my_queue)
+
+        try:
+            # Initial snapshot — all currently active games
+            async with _active_games_lock:
+                games = [
+                    _get_active_game_info(gid, g)
+                    for gid, g in list(active_games.items())
+                ]
+            yield f"data: {json.dumps({'type': 'lobby_snapshot', 'games': games}, ensure_ascii=False)}\n\n"
+
+            while True:
+                try:
+                    event = await asyncio.wait_for(my_queue.get(), timeout=30)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            async with _lobby_queues_lock:
+                _lobby_queues.discard(my_queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        })
 
 
 @app.post("/game/{game_id}/pause")
@@ -410,54 +515,87 @@ async def delete_game_data(game_id: str):
 # ── Helpers ─────────────────────────────────────────────────────
 
 async def _run_game(game_id: str):
-    """Run a game in the background, pushing events to the queue."""
+    """Run a game in the background, pushing events to all SSE queues."""
     game = active_games[game_id]
-    queue = game_event_queues[game_id]
+
+    def _broadcast_game_event(evt: dict):
+        """Push an event to every SSE client watching this game."""
+        queues = game_event_queues.get(game_id)
+        if queues:
+            for q in queues:
+                try:
+                    q.put_nowait(dict(evt))
+                except asyncio.QueueFull:
+                    pass
 
     try:
-        # Patch push_event to also send to queue
+        # Patch push_event to also broadcast to SSE queues
         original_push = game.state.push_event
 
         def push_to_queue(event):
             original_push(event)
             try:
-                queue.put_nowait(dict(event))
-            except asyncio.QueueFull:
-                logger.warning("SSE queue full, dropping event: %s", event.get("type"))
+                _broadcast_game_event(event)
+            except Exception:
+                pass
+            # Notify lobby on phase / pause / resume changes
+            if event.get("type") in ("phase_change", "game_paused", "game_resumed"):
+                asyncio.ensure_future(_broadcast_lobby_event({
+                    "type": "game_update",
+                    **_get_active_game_info(game_id, game),
+                }))
 
         game.state.push_event = push_to_queue
 
         # Emit initial state
-        await queue.put({
+        start_event = {
             "type": "game_started",
             "game_id": game_id,
             "players": getattr(game, "_player_assignments", []),
+            "game_start_time": int(getattr(game, 'start_time', 0) * 1000),
+        }
+        _broadcast_game_event(start_event)
+
+        # Notify lobby of new game
+        await _broadcast_lobby_event({
+            "type": "game_started",
+            **_get_active_game_info(game_id, game),
         })
 
         await game.run()
 
         if game.is_stopped:
-            await queue.put({"type": "game_stopped", "game_id": game_id})
+            _broadcast_game_event({"type": "game_stopped", "game_id": game_id})
         else:
-            await queue.put({"type": "game_ended", "game_id": game_id})
+            _broadcast_game_event({"type": "game_ended", "game_id": game_id})
 
     except GameStoppedError:
         logger.info("Game %s stopped by user", game_id)
-        await queue.put({"type": "game_stopped", "game_id": game_id})
+        _broadcast_game_event({"type": "game_stopped", "game_id": game_id})
     except Exception as e:
         logger.exception("Game %s failed: %s", game_id, e)
-        await queue.put({"type": "error", "message": str(e)})
+        _broadcast_game_event({"type": "error", "message": str(e)})
     finally:
         # Move to completed
-        if game_id in active_games:
-            game = active_games.pop(game_id)
-            completed_games.append({
-                "game_id": game_id,
-                "completed_at": datetime.now().isoformat(),
-                "winner": game.state.winner,
-                "rounds": game.state.round,
-                "data_path": str(_get_data_dir() / datetime.now().strftime("%Y-%m-%d") / game_id / "game_data.json"),
-            })
+        async with _active_games_lock:
+            if game_id in active_games:
+                game = active_games.pop(game_id)
+                completed_games.append({
+                    "game_id": game_id,
+                    "completed_at": datetime.now().isoformat(),
+                    "winner": game.state.winner,
+                    "rounds": game.state.round,
+                    "data_path": str(_get_data_dir() / datetime.now().strftime("%Y-%m-%d") / game_id / "game_data.json"),
+                })
+
+        # Clean up event queues
+        game_event_queues.pop(game_id, None)
+
+        # Notify lobby that game is gone
+        await _broadcast_lobby_event({
+            "type": "game_ended",
+            "game_id": game_id,
+        })
 
 
 async def _queue_put(queue: asyncio.Queue, event: dict):
