@@ -88,6 +88,11 @@ PHASE_NAMES_ZH = {
 
 def _get_active_game_info(game_id: str, game: Game) -> dict:
     """Build a lightweight status snapshot for lobby display."""
+    start_ts = getattr(game, 'start_time', 0)
+    if start_ts:
+        start_display = datetime.fromtimestamp(start_ts).strftime("%H:%M:%S")
+    else:
+        start_display = ""
     return {
         "game_id": game_id,
         "phase": game.state.phase.value,
@@ -95,7 +100,8 @@ def _get_active_game_info(game_id: str, game: Game) -> dict:
         "round": game.state.round,
         "alive_count": len(game.state.alive_players),
         "total_players": len(game.state.players),
-        "start_time": int(getattr(game, 'start_time', 0) * 1000),
+        "start_time": int(start_ts * 1000),
+        "start_time_display": start_display,
         "is_paused": game.is_paused,
     }
 
@@ -160,6 +166,16 @@ def _assign_roles(num_players: int) -> list[str]:
              + ["villager"] * 3)
     random.shuffle(roles)
     return roles
+
+
+def _format_duration(seconds: float) -> str:
+    """Format duration in seconds to human-readable string."""
+    if not seconds:
+        return ""
+    total = int(seconds)
+    mins = total // 60
+    secs = total % 60
+    return f"{mins}分{secs}秒"
 
 
 def _get_data_dir() -> Path:
@@ -576,24 +592,35 @@ async def _run_game(game_id: str):
         _broadcast_game_event({"type": "error", "message": str(e)})
     finally:
         # Move to completed
+        completed_info = None
         async with _active_games_lock:
             if game_id in active_games:
                 game = active_games.pop(game_id)
-                completed_games.append({
+                now = datetime.now()
+                completed_info = {
                     "game_id": game_id,
-                    "completed_at": datetime.now().isoformat(),
+                    "display_time": now.strftime("%Y-%m-%d %H:%M:%S"),
                     "winner": game.state.winner,
                     "rounds": game.state.round,
-                    "data_path": str(_get_data_dir() / datetime.now().strftime("%Y-%m-%d") / game_id / "game_data.json"),
+                    "api_provider": getattr(getattr(game, 'collector', None), 'api_provider', '?'),
+                    "duration_display": _format_duration(getattr(game, 'duration_seconds', 0)),
+                }
+                completed_games.append({
+                    "game_id": game_id,
+                    "completed_at": now.isoformat(),
+                    "winner": game.state.winner,
+                    "rounds": game.state.round,
+                    "data_path": str(_get_data_dir() / now.strftime("%Y-%m-%d") / game_id / "game_data.json"),
                 })
 
         # Clean up event queues
         game_event_queues.pop(game_id, None)
 
-        # Notify lobby that game is gone
+        # Notify lobby that game is gone, with completed info for table update
         await _broadcast_lobby_event({
             "type": "game_ended",
             "game_id": game_id,
+            "completed": completed_info,
         })
 
 

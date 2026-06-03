@@ -160,11 +160,12 @@
         <div class="card">
             <h2>🟢 进行中的游戏 <span id="active-count" style="font-weight:400;color:#8a8f98;font-size:0.8125rem;"></span></h2>
             <table>
-                <thead><tr><th>游戏 ID</th><th>阶段</th><th>轮次</th><th>存活</th><th>操作</th></tr></thead>
+                <thead><tr><th>游戏 ID</th><th>开始时间</th><th>阶段</th><th>轮次</th><th>存活</th><th>操作</th></tr></thead>
                 <tbody id="active-games-body">
                 {% for g in active_games %}
                 <tr data-game-id="{{ g.game_id }}">
                     <td>{% if g.is_paused %}⏸️{% else %}▶️{% endif %} {{ g.game_id }}</td>
+                    <td>{{ g.start_time_display }}</td>
                     <td>{{ g.phase_zh }}</td>
                     <td>第 {{ g.round }} 轮</td>
                     <td>{{ g.alive_count }}/{{ g.total_players }}</td>
@@ -178,12 +179,11 @@
 
         <div class="card">
             <h2>📊 已完成游戏</h2>
-            {% if completed_games %}
             <table>
                 <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>时长</th><th>结果</th><th>操作</th></tr></thead>
-                <tbody>
+                <tbody id="completed-games-body">
                 {% for g in completed_games %}
-                <tr>
+                <tr data-game-id="{{ g.game_id }}">
                     <td>{{ g.game_id }}</td>
                     <td>{{ g.display_time }}</td>
                     <td>{{ g.api_provider }}</td>
@@ -196,11 +196,11 @@
                         <button class="btn btn-sm btn-danger" onclick="deleteGame('{{ g.game_id }}')">删除</button></td>
                 </tr>
                 {% endfor %}
+                {% if not completed_games %}
+                <tr id="no-completed-games" class="empty-row"><td colspan="7"><p class="empty">暂无已完成游戏</p></td></tr>
+                {% endif %}
                 </tbody>
             </table>
-            {% else %}
-            <p class="empty">暂无已完成游戏</p>
-            {% endif %}
         </div>
     </div>
 
@@ -262,12 +262,34 @@
             var badge = g.is_paused ? '⏸️' : '▶️';
             return '<tr data-game-id="' + g.game_id + '">' +
                 '<td>' + badge + ' ' + g.game_id + '</td>' +
+                '<td>' + (g.start_time_display || '') + '</td>' +
                 '<td>' + (g.phase_zh || '') + '</td>' +
                 '<td>第 ' + g.round + ' 轮</td>' +
                 '<td>' + g.alive_count + '/' + g.total_players + '</td>' +
                 '<td><a href="/game/' + g.game_id + '" class="btn btn-primary btn-sm">观看</a></td>' +
                 '</tr>';
         }).join('');
+    }
+
+    function insertCompletedGame(g) {
+        var tbody = document.getElementById('completed-games-body');
+        // Remove empty-state row if present
+        var emptyRow = document.getElementById('no-completed-games');
+        if (emptyRow) emptyRow.remove();
+        // Prepend new row at top (newest first)
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-game-id', g.game_id);
+        var winnerCls = g.winner === 'good' ? 'winner-good' : 'winner-werewolf';
+        var winnerLabel = g.winner === 'good' ? '好人胜' : '狼人胜';
+        tr.innerHTML = '<td>' + g.game_id + '</td>' +
+            '<td>' + (g.display_time || '') + '</td>' +
+            '<td>' + (g.api_provider || '') + '</td>' +
+            '<td>' + g.rounds + ' 轮</td>' +
+            '<td>' + (g.duration_display || '') + '</td>' +
+            '<td class="' + winnerCls + '">' + winnerLabel + '</td>' +
+            '<td><a href="/game/' + g.game_id + '/data" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">查看数据</a> ' +
+            '<button class="btn btn-sm btn-danger" onclick="deleteGame(\'' + g.game_id + '\')">删除</button></td>';
+        tbody.insertBefore(tr, tbody.firstChild);
     }
 
     // ── Lobby SSE — real-time active game updates ──────────────────
@@ -292,6 +314,7 @@
                         var tr = document.createElement('tr');
                         tr.setAttribute('data-game-id', event.game_id);
                         tr.innerHTML = '<td>' + badge + ' ' + event.game_id + '</td>' +
+                            '<td>' + (event.start_time_display || '') + '</td>' +
                             '<td>' + (event.phase_zh || '开始') + '</td>' +
                             '<td>第 ' + (event.round || 1) + ' 轮</td>' +
                             '<td>' + (event.alive_count || 9) + '/' + (event.total_players || 9) + '</td>' +
@@ -306,18 +329,22 @@
                     if (tr) {
                         var badge = event.is_paused ? '⏸️' : '▶️';
                         tr.cells[0].textContent = badge + ' ' + event.game_id;
-                        tr.cells[1].textContent = event.phase_zh || '';
-                        tr.cells[2].textContent = '第 ' + event.round + ' 轮';
-                        tr.cells[3].textContent = event.alive_count + '/' + event.total_players;
+                        tr.cells[2].textContent = event.phase_zh || '';
+                        tr.cells[3].textContent = '第 ' + event.round + ' 轮';
+                        tr.cells[4].textContent = event.alive_count + '/' + event.total_players;
                     }
                 } else if (event.type === 'game_ended' || event.type === 'game_stopped') {
                     var tr = document.querySelector('tr[data-game-id="' + event.game_id + '"]');
                     if (tr) tr.remove();
-                    var tbody = document.getElementById('active-games-body');
-                    var rows = tbody.querySelectorAll('tr[data-game-id]');
+                    var activeBody = document.getElementById('active-games-body');
+                    var rows = activeBody.querySelectorAll('tr[data-game-id]');
                     document.getElementById('active-count').textContent = rows.length ? '(' + rows.length + ')' : '';
                     if (!rows.length) {
                         document.getElementById('no-active-games').style.display = 'block';
+                    }
+                    // Insert completed game into completed table
+                    if (event.completed) {
+                        insertCompletedGame(event.completed);
                     }
                 }
             } catch (err) {
