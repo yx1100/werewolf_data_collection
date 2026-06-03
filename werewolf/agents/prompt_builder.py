@@ -31,6 +31,7 @@ def build_system_prompt(player_id: int, role: str, personality: dict) -> str:
     parts.append("")
     parts.append("游戏规则概要：")
     parts.append("- 本局共9名玩家：3狼人、1预言家、1女巫、1猎人、3平民。")
+    parts.append("- 本局仅包含以上5种角色，不存在其他角色（没有守卫、丘比特、白痴、长老等扩展角色）。请严格基于本局实际角色设定进行推理，不要引入其他角色。")
     parts.append("- 游戏分为夜晚和白天两个阶段交替进行。")
     parts.append("- 夜晚：狼人交流并选择击杀目标；预言家查验一名玩家；女巫决定是否使用解药/毒药。")
     parts.append("- 白天：公布死讯，轮流发言，自由讨论，投票放逐一名玩家。")

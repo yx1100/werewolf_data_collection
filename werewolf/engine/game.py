@@ -197,7 +197,6 @@ class Game:
     async def _werewolf_night_phase(self, werewolf_ids: list[int]):
         """Werewolves chat with each other, then vote on kill target."""
         # Step 1: Werewolf discussion (each wolf can speak multiple times in a chat loop)
-        discussion_context = self._build_werewolf_context(werewolf_ids)
         chat_history: list[dict] = []
 
         # Werewolves discuss — give them a few rounds of chat
@@ -818,6 +817,7 @@ class Game:
                     "phase": "HUNTER_SHOOT",
                     "round": self.state.round,
                     "alive_players": self.state.alive_players,
+                    "valid_targets": [p for p in self.state.alive_players if p != eliminated],
                     "public_history": self._public_history(),
                 })
                 if output and output.action:
@@ -852,6 +852,7 @@ class Game:
                     "phase": "HUNTER_SHOOT",
                     "round": self.state.round,
                     "alive_players": self.state.alive_players,
+                    "valid_targets": [p for p in self.state.alive_players if p != pid],
                     "public_history": self._public_history(),
                 })
                 if output and output.action:
