@@ -374,7 +374,8 @@ async def game_stream(game_id: str) -> StreamingResponse:
                         yield f"data: {json.dumps({'type': 'game_ended'})}\n\n"
                         break
         finally:
-            # Unregister this client's queue
+            # Unregister this client's queue (but don't pop the
+            # game_event_queues entry — _run_game owns that lifecycle)
             async with _active_games_lock:
                 queues = game_event_queues.get(game_id)
                 if queues:
@@ -382,8 +383,6 @@ async def game_stream(game_id: str) -> StreamingResponse:
                         queues.remove(my_queue)
                     except ValueError:
                         pass
-                    if not queues:
-                        game_event_queues.pop(game_id, None)
 
     return StreamingResponse(
         event_generator(),
