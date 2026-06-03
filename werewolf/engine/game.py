@@ -482,7 +482,7 @@ class Game:
     # ── Day Phases ───────────────────────────────────────────────
 
     async def _do_phase_day_announce(self):
-        """Announce night results."""
+        """Announce night results, let night-killed hunters shoot."""
         deaths = self.state.current_events
 
         # Build detailed night action summary for display
@@ -508,16 +508,57 @@ class Game:
             if player.role == "hunter" and not player.poisoned:
                 player.can_shoot = True
 
+        # Build events list for record
+        events = [
+            {"type": "death", "player_id": d["player_id"],
+             "cause": d["cause"], "visibility": "public"}
+            for d in deaths
+        ]
+
+        # Night-killed hunters: activate and shoot (before day discussion)
+        for pid, ps in self.state.players.items():
+            if not ps.is_alive and ps.can_shoot:
+                self.state.push_event({
+                    "type": "hunter_activate",
+                    "message": f"猎人{pid}号昨晚死亡，可以开枪！",
+                })
+                await self._check_pause_and_stop()
+                agent = self.agents[pid]
+                output = await agent.decide(context={
+                    "phase": "HUNTER_SHOOT",
+                    "round": self.state.round,
+                    "alive_players": self.state.alive_players,
+                    "valid_targets": [p for p in self.state.alive_players if p != pid],
+                    "public_history": self._public_history(),
+                })
+                if output and output.action:
+                    target = output.action.get("target")
+                    if target and target in self.state.alive_players:
+                        target_player = self.state.players[target]
+                        target_player.is_alive = False
+                        if target in self.state.alive_players:
+                            self.state.alive_players.remove(target)
+                        events.append({
+                            "type": "hunter_shoot",
+                            "player_id": pid,
+                            "target": target,
+                            "visibility": "public",
+                        })
+                        self.state.push_event({
+                            "type": "hunter_shoot",
+                            "player_id": pid,
+                            "target": target,
+                            "message": f"🔫 猎人{pid}号开枪带走{target}号玩家！",
+                        })
+                ps.can_shoot = False  # clear flag after shooting
+                break  # only one hunter can die per round
+
         record = {
             "phase": "DAY_ANNOUNCE",
             "round": self.state.round,
             "message": msg,
             "night_summary": {"data": night_summary, "visibility": "private"},
-            "events": [
-                {"type": "death", "player_id": d["player_id"],
-                 "cause": d["cause"], "visibility": "public"}
-                for d in deaths
-            ],
+            "events": events,
         }
         self.state.phase_records.append(record)
         self.state.current_events = []
@@ -839,44 +880,6 @@ class Game:
                             "target": target,
                             "message": f"🔫 猎人{eliminated}号开枪带走{target}号玩家！",
                         })
-
-        # Night-killed hunter: check if any dead hunter needs to shoot
-        for pid, ps in self.state.players.items():
-            if not ps.is_alive and ps.can_shoot and pid != eliminated:
-                self.state.push_event({
-                    "type": "hunter_activate",
-                    "message": f"猎人{pid}号昨晚死亡，可以开枪！",
-                })
-                await self._check_pause_and_stop()
-                agent = self.agents[pid]
-                output = await agent.decide(context={
-                    "phase": "HUNTER_SHOOT",
-                    "round": self.state.round,
-                    "alive_players": self.state.alive_players,
-                    "valid_targets": [p for p in self.state.alive_players if p != pid],
-                    "public_history": self._public_history(),
-                })
-                if output and output.action:
-                    target = output.action.get("target")
-                    if target and target in self.state.alive_players:
-                        target_player = self.state.players[target]
-                        target_player.is_alive = False
-                        if target in self.state.alive_players:
-                            self.state.alive_players.remove(target)
-                        events.append({
-                            "type": "hunter_shoot",
-                            "player_id": pid,
-                            "target": target,
-                            "visibility": "public",
-                        })
-                        self.state.push_event({
-                            "type": "hunter_shoot",
-                            "player_id": pid,
-                            "target": target,
-                            "message": f"🔫 猎人{pid}号开枪带走{target}号玩家！",
-                        })
-                ps.can_shoot = False  # clear flag after shooting
-                break  # only one hunter can die per round
 
         record = {
             "phase": "DAY_RESULT",
