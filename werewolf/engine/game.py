@@ -497,6 +497,7 @@ class Game:
         self.state.push_event({
             "type": "day_announce",
             "message": msg,
+            "night_summary": night_summary,
             "dead_players": [d["player_id"] for d in deaths],
         })
 

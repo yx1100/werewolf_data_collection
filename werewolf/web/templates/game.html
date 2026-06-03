@@ -220,6 +220,11 @@
                 case 'day_announce':
                     cls = 'event-death';
                     html = `<div>☀️ ${event.message || ''}</div>`;
+                    if (event.night_summary && event.night_summary.length) {
+                        html += '<div style="margin-top:6px; font-size:0.85rem; color:#aaa;">';
+                        event.night_summary.forEach(function(s) { html += `<div>🌙 ${s}</div>`; });
+                        html += '</div>';
+                    }
                     if (event.dead_players && event.dead_players.length) {
                         event.dead_players.forEach(function(pid) { markPlayerDead(pid); });
                     }
