@@ -257,14 +257,14 @@ class Game:
                         "visibility": "private",
                     })
 
-        # Majority vote for kill
+        # Majority vote for kill (need > half of wolves to agree)
         if kill_votes:
             target = max(kill_votes, key=kill_votes.get)
             if kill_votes[target] > 1:  # Need at least 2 agreement
                 self.state.werewolf_kill_target = target
             else:
-                self.state.werewolf_kill_target = max(
-                    kill_votes, key=kill_votes.get)
+                # No majority — no kill this night
+                self.state.werewolf_kill_target = None
             self.state.current_actions.append({
                 "player_id": 0,
                 "role": "werewolf",
@@ -359,13 +359,14 @@ class Game:
                 "phase": "NIGHT_WITCH_POISON",
                 "round": self.state.round,
                 "alive_players": self.state.alive_players,
+                "killed_player": kill_target,
                 "public_history": self._public_history(),
             }
             output = await agent.decide(context)
             if output and output.action:
                 action_type = output.action.get("type", "pass")
                 target = output.action.get("target")
-                if action_type == "use_poison" and target:
+                if action_type == "use_poison" and target and target in self.state.alive_players:
                     self.state.witch_poison_target = target
                     self.state.witch_poison_used = True
                     self.state.witch_has_poison = False
@@ -503,9 +504,9 @@ class Game:
 
         for death in deaths:
             pid = death["player_id"]
-            # If hunter was killed by werewolves (not poison), flag can_shoot
+            # If hunter was killed (not poisoned), flag can_shoot
             player = self.state.players[pid]
-            if player.role == "hunter" and not player.poisoned:
+            if can_hunter_shoot(player):
                 player.can_shoot = True
 
         # Build events list for record
