@@ -361,7 +361,7 @@ async def game_stream(game_id: str) -> StreamingResponse:
                 dead = [pid for pid, ps in game.state.players.items()
                         if not ps.is_alive]
                 all_events = getattr(game.state, 'events', [])
-                recent = all_events[-50:] if len(all_events) > 50 else all_events
+                recent = all_events[-300:] if len(all_events) > 300 else all_events
                 yield f"data: {json.dumps({
                     'type': 'game_state',
                     'game_id': game_id,
