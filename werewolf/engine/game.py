@@ -600,7 +600,7 @@ class Game:
         # Build events list for record
         events = [
             {"type": "death", "player_id": d["player_id"],
-             "cause": d["cause"]}
+             "cause": d["cause"], "visibility": "public"}
             for d in deaths
         ]
 
@@ -646,6 +646,7 @@ class Game:
                             "player_id": pid,
                             "target": target,
                             "thought": output.thought or "",
+                            "visibility": "public",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",
@@ -669,6 +670,7 @@ class Game:
                                 "player_id": target,
                                 "thought": target_output.thought or "",
                                 "speech": target_output.speech,
+                                "visibility": "public",
                             })
                             self.state.push_event({
                                 "type": "last_words",
@@ -685,6 +687,7 @@ class Game:
             "message": msg,
             "night_summary": {"data": night_summary, "visibility": "private"},
             "events": events,
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
         self.state.current_events = []
@@ -722,6 +725,7 @@ class Game:
                     "turn": speech_count,
                     "thought": output.thought or "",
                     "speech": output.speech or "",
+                    "visibility": "public",
                 })
                 discussion_context.append({
                     "player_id": player_id,
@@ -743,6 +747,7 @@ class Game:
             "phase": "DAY_DISCUSSION",
             "round": self.state.round,
             "speeches": speeches,
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
 
@@ -782,6 +787,7 @@ class Game:
                         "free_round": round_num,
                         "thought": output.thought or "",
                         "speech": output.speech or "",
+                        "visibility": "public",
                     })
                     discussion_ctx.append({
                         "player_id": player_id,
@@ -804,6 +810,7 @@ class Game:
             "phase": "DAY_FREE_DISCUSSION",
             "round": self.state.round,
             "speeches": all_speeches,
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
 
@@ -851,6 +858,7 @@ class Game:
                         "voter_id": player_id,
                         "thought": output.thought or "",
                         "target": target,
+                        "visibility": "public",
                     })
 
         self.state.votes = votes
@@ -904,6 +912,7 @@ class Game:
                 "vote_count": {str(k): v for k, v in tally.items()},
                 "tie": is_tie,
             },
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
 
@@ -940,6 +949,7 @@ class Game:
                     "turn": speech_count,
                     "thought": output.thought or "",
                     "speech": output.speech or "",
+                    "visibility": "public",
                 })
                 self.state.push_event({
                     "type": "speech",
@@ -954,6 +964,7 @@ class Game:
             "round": self.state.round,
             "pk_candidates": list(pk),
             "speeches": speeches,
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
 
@@ -993,6 +1004,7 @@ class Game:
                         "voter_id": player_id,
                         "thought": output.thought or "",
                         "target": target,
+                        "visibility": "public",
                     })
 
         self.state.votes = votes
@@ -1043,6 +1055,7 @@ class Game:
                 "vote_count": {str(k): v for k, v in tally.items()},
                 "tie": len(top_candidates) > 1,
             },
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
 
@@ -1071,6 +1084,7 @@ class Game:
             events.append({
                 "type": "elimination",
                 "player_id": eliminated,
+                "visibility": "public",
             })
             self.state.push_event({
                 "type": "elimination",
@@ -1120,6 +1134,7 @@ class Game:
                             "player_id": eliminated,
                             "target": target,
                             "thought": hunter_output.thought or "",
+                            "visibility": "public",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",
@@ -1145,6 +1160,7 @@ class Game:
                     "player_id": eliminated,
                     "thought": output.thought or "",
                     "speech": output.speech,
+                    "visibility": "public",
                 })
                 self.state.push_event({
                     "type": "last_words",
@@ -1171,6 +1187,7 @@ class Game:
                         "player_id": shot_target,
                         "thought": target_output.thought or "",
                         "speech": target_output.speech,
+                        "visibility": "public",
                     })
                     self.state.push_event({
                         "type": "last_words",
@@ -1183,6 +1200,7 @@ class Game:
             "phase": "DAY_RESULT",
             "round": self.state.round,
             "events": events,
+            "visibility": "public",
         }
         self.state.phase_records.append(record)
         self.state.current_events = events

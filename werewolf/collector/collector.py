@@ -55,6 +55,14 @@ class GameCollector:
             seconds = total_seconds % 60
             duration_display = f"{minutes}分{seconds}秒"
 
+        # Inject sequential index into phase records for reliable ordering
+        phases = []
+        for seq, record in enumerate(state.phase_records):
+            phases.append({"seq": seq, **record})
+
+        # Extract consolidated deaths from phase records
+        deaths = self._extract_deaths(state.phase_records)
+
         return {
             "schema_version": "2.0",
             "game_id": state.game_id,
@@ -72,7 +80,8 @@ class GameCollector:
                 "witch_self_save_first_night": self.hyperparams.get("witch_self_save_first_night"),
                 "players": players_config,
             },
-            "phases": state.phase_records,
+            "phases": phases,
+            "deaths": deaths,
             "result": {
                 "winner": state.winner,
                 "surviving_players": sorted(state.alive_players),
@@ -84,6 +93,53 @@ class GameCollector:
                 "duration_display": duration_display,
             },
         }
+
+    @staticmethod
+    def _extract_deaths(phase_records: list[dict]) -> list[dict]:
+        """Extract consolidated death/elimination records from all phases.
+
+        Returns a list ordered by round, with each entry containing:
+        - player_id: the player who died
+        - round: the game round when death occurred
+        - cause: how they died (werewolf_kill / witch_poison / hunter_shoot / elimination)
+        """
+        deaths = []
+        for record in phase_records:
+            phase = record.get("phase", "")
+            round_num = record.get("round", 1)
+
+            if phase == "DAY_ANNOUNCE":
+                for event in record.get("events", []):
+                    etype = event.get("type", "")
+                    if etype == "death":
+                        deaths.append({
+                            "player_id": event["player_id"],
+                            "round": round_num,
+                            "cause": event.get("cause", "unknown"),
+                        })
+                    elif etype == "hunter_shoot":
+                        deaths.append({
+                            "player_id": event["target"],
+                            "round": round_num,
+                            "cause": "hunter_shoot",
+                        })
+            elif phase == "DAY_RESULT":
+                for event in record.get("events", []):
+                    etype = event.get("type", "")
+                    if etype == "elimination":
+                        deaths.append({
+                            "player_id": event["player_id"],
+                            "round": round_num,
+                            "cause": "elimination",
+                        })
+                    elif etype == "hunter_shoot":
+                        deaths.append({
+                            "player_id": event["target"],
+                            "round": round_num,
+                            "cause": "hunter_shoot",
+                        })
+
+        return deaths
 
     def _get_output_path(self, game_id: str) -> Path:
         """Generate output path: data/YYYY-MM-DD/game_NNN/game_data.json"""
