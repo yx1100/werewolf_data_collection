@@ -552,19 +552,15 @@ class Game:
                     self.agents[w].add_private_info(
                         f"你的狼队友{pid}号已死亡。")
 
-        # Notify werewolves of kill result (prevent "空刀" hallucination)
+        # Notify werewolves if their kill target actually died (death is public info).
+        # Note: we do NOT tell wolves about witch saving — that's witch's private info.
+        # Wolves can infer it from "we voted to kill X" + "peaceful night" (public).
         alive_wolves = self.state.get_alive_werewolves()
         if kill_target is not None and alive_wolves:
-            saved = (self.state.witch_antidote_target == kill_target
-                     and self.state.witch_antidote_used)
-            if saved:
+            if any(d["player_id"] == kill_target for d in deaths):
                 for w in alive_wolves:
                     self.agents[w].add_private_info(
-                        f"你们击杀的{kill_target}号玩家被女巫救活了（平安夜）。")
-            elif any(d["player_id"] == kill_target for d in deaths):
-                for w in alive_wolves:
-                    self.agents[w].add_private_info(
-                        f"你们成功击杀了{kill_target}号玩家。")
+                        f"你们击杀的{kill_target}号玩家死亡。")
 
         # Store deaths for announcement
         self.state.current_events = deaths
