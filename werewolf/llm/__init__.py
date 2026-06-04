@@ -41,7 +41,7 @@ class LLMClient(ABC):
 
         # Temperature is not supported in deep thinking mode for DeepSeek
         if not (self.deep_thinking and self.get_provider_name() == "deepseek"):
-            kwargs["temperature"] = self.config.get("temperature", 0.7)
+            kwargs["temperature"] = self.config.get("temperature", 1.0)
 
         if response_format:
             kwargs["response_format"] = response_format

@@ -11,7 +11,7 @@ qwen:
   api_key: "${QWEN_API_KEY}"
   model: "qwen3.7-plus"     # 可在 Web UI 中自定义模型名；支持思考模式的模型: qwen-plus, qwen3.7-plus 等
   max_tokens: 2048
-  temperature: 0.7
+  temperature: 1.0
   # enable_thinking: true     # 通过 game_config.yaml 中的 deep_thinking 控制，或 CLI --thinking
   # thinking_budget: 2048      # 限制推理最大 token 数，0=不限制
 
@@ -23,5 +23,5 @@ deepseek:
   api_key: "${DEEPSEEK_API_KEY}"
   model: "deepseek-v4-flash"  # 可在 Web UI 中自定义模型名
   max_tokens: 2048
-  temperature: 0.7
+  temperature: 1.0
   reasoning_effort: "high"  # "high" or "max" for deep thinking mode
