@@ -360,7 +360,7 @@ class Game:
                 "phase": "NIGHT_WITCH_POISON",
                 "round": self.state.round,
                 "alive_players": self.state.alive_players,
-                "killed_player": kill_target,
+                "killed_player": kill_target if (self.state.witch_has_antidote and not self.state.witch_antidote_used) else None,
                 "public_history": self._public_history(),
             }
             output = await agent.decide(context)
