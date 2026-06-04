@@ -211,7 +211,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
         "HUNTER_SHOOT": (
             ("你被狼人夜间杀害。" if context.get("cause") == "night_kill"
              else "你被投票放逐。")
-            + f"你是猎人！你可以开枪带走一名玩家。可选目标：{valid_str}\n"
+            + f"你是猎人！你必须开枪带走一名玩家（除非被女巫毒杀则无法开枪，但你未被毒杀）。"
+            + f"可选目标：{valid_str}\n"
+            "你可以亮明身份（亮牌）来增加说服力，也可以直接开枪不亮牌。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你要带谁走，为什么", "action": {"type": "shoot", "target": <目标玩家编号>}}'
         ),

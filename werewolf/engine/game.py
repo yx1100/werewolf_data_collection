@@ -623,6 +623,19 @@ class Game:
                     "public_history": self._public_history(),
                     "cause": "night_kill",
                 })
+                # Hunter MUST shoot — retry once with stronger prompt if no valid target
+                if not (output and output.action
+                        and output.action.get("target") in self.state.alive_players):
+                    await self._check_pause_and_stop()
+                    agent.add_private_info("你必须选择一名玩家开枪！猎人死亡时必须发动技能。")
+                    output = await agent.decide(context={
+                        "phase": "HUNTER_SHOOT",
+                        "round": self.state.round,
+                        "alive_players": self.state.alive_players,
+                        "valid_targets": [p for p in self.state.alive_players if p != pid],
+                        "public_history": self._public_history(),
+                        "cause": "night_kill",
+                    })
                 if output and output.action:
                     target = output.action.get("target")
                     if target and target in self.state.alive_players:
@@ -642,6 +655,29 @@ class Game:
                             "target": target,
                             "message": f"🔫 猎人{pid}号开枪带走{target}号玩家！",
                         })
+                        # Shot target gives last words
+                        await self._check_pause_and_stop()
+                        target_agent = self.agents[target]
+                        target_output = await target_agent.decide(context={
+                            "phase": "LAST_WORDS",
+                            "round": self.state.round,
+                            "alive_players": self.state.alive_players,
+                            "eliminated_player": target,
+                            "public_history": self._public_history(),
+                        })
+                        if target_output and target_output.speech:
+                            events.append({
+                                "type": "last_words",
+                                "player_id": target,
+                                "thought": target_output.thought or "",
+                                "speech": target_output.speech,
+                            })
+                            self.state.push_event({
+                                "type": "last_words",
+                                "player_id": target,
+                                "message": f"{target}号玩家（被猎人带走）的遗言：{target_output.speech}",
+                                "thought": target_output.thought or "",
+                            })
                 ps.can_shoot = False  # clear flag after shooting
                 break  # only one hunter can die per round
 
@@ -1015,7 +1051,14 @@ class Game:
     # ── Day Result ─────────────────────────────────────────────────
 
     async def _do_phase_day_result(self):
-        """Process elimination result: last words, hunter shot."""
+        """Process elimination result: hunter shot (if any), then last words.
+
+        Correct order per Werewolf rules:
+        1. Elimination announced
+        2. Hunter shoots (BEFORE last words)
+        3. Hunter gives last words
+        4. Shot target gives last words (if any)
+        """
         vote_result = self.state.current_events[0] if self.state.current_events else {}
         eliminated = vote_result.get("eliminated")
         self.state.current_events = []
@@ -1037,7 +1080,57 @@ class Game:
                 "message": f"{eliminated}号玩家被放逐。",
             })
 
-            # Last words from eliminated player
+            # ── Step 1: Hunter shoots (BEFORE last words) ──
+            shot_target = None
+            if can_hunter_shoot(player):
+                self.state.push_event({
+                    "type": "hunter_activate",
+                    "message": f"猎人{eliminated}号可以开枪！",
+                })
+                await self._check_pause_and_stop()
+                agent = self.agents[eliminated]
+                hunter_output = await agent.decide(context={
+                    "phase": "HUNTER_SHOOT",
+                    "round": self.state.round,
+                    "alive_players": self.state.alive_players,
+                    "valid_targets": [p for p in self.state.alive_players if p != eliminated],
+                    "public_history": self._public_history(),
+                    "cause": "vote_out",
+                })
+                # Hunter MUST shoot — retry once with stronger prompt if no valid target
+                if not (hunter_output and hunter_output.action
+                        and hunter_output.action.get("target") in self.state.alive_players):
+                    await self._check_pause_and_stop()
+                    agent.add_private_info("你必须选择一名玩家开枪！猎人被放逐时必须发动技能。")
+                    hunter_output = await agent.decide(context={
+                        "phase": "HUNTER_SHOOT",
+                        "round": self.state.round,
+                        "alive_players": self.state.alive_players,
+                        "valid_targets": [p for p in self.state.alive_players if p != eliminated],
+                        "public_history": self._public_history(),
+                        "cause": "vote_out",
+                    })
+                if hunter_output and hunter_output.action:
+                    target = hunter_output.action.get("target")
+                    if target and target in self.state.alive_players:
+                        shot_target = target
+                        target_player = self.state.players[target]
+                        target_player.is_alive = False
+                        self.state.alive_players.remove(target)
+                        events.append({
+                            "type": "hunter_shoot",
+                            "player_id": eliminated,
+                            "target": target,
+                            "thought": hunter_output.thought or "",
+                        })
+                        self.state.push_event({
+                            "type": "hunter_shoot",
+                            "player_id": eliminated,
+                            "target": target,
+                            "message": f"🔫 猎人{eliminated}号开枪带走{target}号玩家！",
+                        })
+
+            # ── Step 2: Eliminated player gives last words ──
             await self._check_pause_and_stop()
             agent = self.agents[eliminated]
             context = {
@@ -1062,39 +1155,31 @@ class Game:
                     "thought": output.thought or "",
                 })
 
-            # Hunter shot
-            if can_hunter_shoot(player):
-                self.state.push_event({
-                    "type": "hunter_activate",
-                    "message": f"猎人{eliminated}号可以开枪！",
-                })
+            # ── Step 3: Shot target gives last words (if hunter shot someone) ──
+            if shot_target is not None:
                 await self._check_pause_and_stop()
-                hunter_output = await agent.decide(context={
-                    "phase": "HUNTER_SHOOT",
+                target_agent = self.agents[shot_target]
+                target_context = {
+                    "phase": "LAST_WORDS",
                     "round": self.state.round,
                     "alive_players": self.state.alive_players,
-                    "valid_targets": [p for p in self.state.alive_players if p != eliminated],
+                    "eliminated_player": shot_target,
                     "public_history": self._public_history(),
-                    "cause": "vote_out",
-                })
-                if hunter_output and hunter_output.action:
-                    target = hunter_output.action.get("target")
-                    if target and target in self.state.alive_players:
-                        target_player = self.state.players[target]
-                        target_player.is_alive = False
-                        self.state.alive_players.remove(target)
-                        events.append({
-                            "type": "hunter_shoot",
-                            "player_id": eliminated,
-                            "target": target,
-                            "thought": hunter_output.thought or "",
-                        })
-                        self.state.push_event({
-                            "type": "hunter_shoot",
-                            "player_id": eliminated,
-                            "target": target,
-                            "message": f"🔫 猎人{eliminated}号开枪带走{target}号玩家！",
-                        })
+                }
+                target_output = await target_agent.decide(target_context)
+                if target_output and target_output.speech:
+                    events.append({
+                        "type": "last_words",
+                        "player_id": shot_target,
+                        "thought": target_output.thought or "",
+                        "speech": target_output.speech,
+                    })
+                    self.state.push_event({
+                        "type": "last_words",
+                        "player_id": shot_target,
+                        "message": f"{shot_target}号玩家（被猎人带走）的遗言：{target_output.speech}",
+                        "thought": target_output.thought or "",
+                    })
 
         record = {
             "phase": "DAY_RESULT",
