@@ -296,8 +296,13 @@ async def start_game(request: Request):
             "personality": personality,
         })
 
-    # Create agent factory
-    agent_factory = create_agent_factory(llm_client)
+    # Create agent factory with werewolf teammate info
+    # Build teammates map: for each werewolf, list all other werewolves
+    werewolf_ids = [pa["player_id"] for pa in player_assignments if pa["role"] == "werewolf"]
+    teammates_map = {}
+    for wid in werewolf_ids:
+        teammates_map[wid] = [w for w in werewolf_ids if w != wid]
+    agent_factory = create_agent_factory(llm_client, teammates_map)
 
     # Create collector
     collector = GameCollector(

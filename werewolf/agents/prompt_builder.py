@@ -3,8 +3,14 @@
 from werewolf.engine.roles import Role, ROLE_SKILLS_ZH, ROLE_NAMES_ZH, TEAM_NAMES_ZH, ROLE_TEAM
 
 
-def build_system_prompt(player_id: int, role: str, personality: dict) -> str:
-    """Build the base system prompt with personality + role + rules."""
+def build_system_prompt(player_id: int, role: str, personality: dict,
+                       teammates: list[int] | None = None) -> str:
+    """Build the base system prompt with personality + role + rules.
+
+    Args:
+        teammates: For werewolves only — list of other werewolf player IDs.
+                   Injected into the system prompt so the wolf never forgets its pack.
+    """
 
     role_enum = Role(role)
     team = ROLE_TEAM[role_enum]
@@ -28,6 +34,10 @@ def build_system_prompt(player_id: int, role: str, personality: dict) -> str:
     parts.append("[游戏规则]")
     parts.append(f"你是{role_name}，属于{team_name}。")
     parts.append(f"你的技能：{skill_desc}")
+    # Werewolf teammates — always visible (prevents hallucination in day phases)
+    if role == "werewolf" and teammates:
+        teammate_str = "、".join(str(t) for t in sorted(teammates))
+        parts.append(f"你的狼人同伴是：{teammate_str}号玩家。请记住你的队友，在白天发言时要保护他们、避免暴露他们。")
     parts.append("")
     parts.append("游戏规则概要：")
     parts.append("- 本局共9名玩家：3狼人、1预言家、1女巫、1猎人、3平民。")

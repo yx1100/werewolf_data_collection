@@ -264,7 +264,7 @@ class Game:
         # Majority vote for kill (need > half of wolves to agree)
         if kill_votes:
             target = max(kill_votes, key=kill_votes.get)
-            if kill_votes[target] > 1:  # Need at least 2 agreement
+            if kill_votes[target] > len(werewolf_ids) // 2:  # e.g. 3 wolves → >1 (need 2+); 1 wolf → >0 (need 1+)
                 self.state.werewolf_kill_target = target
             else:
                 # No majority — no kill this night
@@ -927,8 +927,12 @@ class Game:
         roles = {pid: ps.role for pid, ps in self.state.players.items()}
         return str(roles)
 
-    def _build_night_summary(self, deaths: list) -> list[str]:
-        """Build a summary of night actions for public display."""
+    def _build_night_summary(self, deaths: list) -> list[dict]:
+        """Build a summary of night actions for display, with thoughts.
+
+        Returns a list of dicts: {"text": "描述", "thought": "推理", "role": "seer/witch/hunter"}
+        The 'thought' field is private (shown only to viewers, never to LLM agents).
+        """
         summary = []
         # Read from current_actions or fall back to last NIGHT phase record
         actions = self.state.current_actions
@@ -944,35 +948,58 @@ class Game:
             if a.get("action") == "kill" and a.get("role") == "werewolf":
                 target = a.get("target")
                 if target:
-                    summary.append(f"狼人决定击杀 {target} 号玩家")
+                    summary.append({
+                        "text": f"狼人决定击杀 {target} 号玩家",
+                        "role": "werewolf",
+                    })
                 break
 
         # Seer check
         for a in actions:
             if a.get("role") == "seer" and a.get("action") == "check":
-                summary.append(f"预言家查验了 {a.get('target')} 号玩家（结果为：{a.get('result', '?')}）")
+                summary.append({
+                    "text": f"预言家查验了 {a.get('target')} 号玩家（结果为：{a.get('result', '?')}）",
+                    "thought": a.get("thought", ""),
+                    "role": "seer",
+                })
                 break
 
         # Witch actions
         for a in actions:
             if a.get("role") == "witch":
                 if a.get("action") == "use_antidote":
-                    summary.append(f"女巫使用了解药，救活了 {a.get('target')} 号玩家")
+                    summary.append({
+                        "text": f"女巫使用了解药，救活了 {a.get('target')} 号玩家",
+                        "thought": a.get("thought", ""),
+                        "role": "witch",
+                    })
                 elif a.get("action") == "use_poison":
-                    summary.append(f"女巫使用了毒药，毒杀了 {a.get('target')} 号玩家")
+                    summary.append({
+                        "text": f"女巫使用了毒药，毒杀了 {a.get('target')} 号玩家",
+                        "thought": a.get("thought", ""),
+                        "role": "witch",
+                    })
                 elif a.get("action") == "pass_antidote":
-                    summary.append("女巫没有使用解药")
+                    summary.append({
+                        "text": "女巫没有使用解药",
+                        "thought": a.get("thought", ""),
+                        "role": "witch",
+                    })
                 elif a.get("action") == "pass_poison":
-                    summary.append("女巫没有使用毒药")
+                    summary.append({
+                        "text": "女巫没有使用毒药",
+                        "thought": a.get("thought", ""),
+                        "role": "witch",
+                    })
 
         # Death results (no role — role is private)
         for d in deaths:
             cause = d.get("cause", "")
             pid = d["player_id"]
             if cause == "werewolf_kill":
-                summary.append(f"{pid} 号玩家被狼人杀害")
+                summary.append({"text": f"{pid} 号玩家被狼人杀害"})
             elif cause == "witch_poison":
-                summary.append(f"{pid} 号玩家被女巫毒杀")
+                summary.append({"text": f"{pid} 号玩家被女巫毒杀"})
 
         return summary
 

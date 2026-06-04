@@ -235,7 +235,16 @@
                     html = `<div>☀️ ${event.message || ''}</div>`;
                     if (event.night_summary && event.night_summary.length) {
                         html += '<div style="margin-top:6px; font-size:0.85rem; color:#aaa;">';
-                        event.night_summary.forEach(function(s) { html += `<div>🌙 ${s}</div>`; });
+                        event.night_summary.forEach(function(s) {
+                            if (typeof s === 'string') {
+                                html += `<div>🌙 ${s}</div>`;
+                            } else {
+                                html += `<div>🌙 ${s.text || ''}</div>`;
+                                if (s.thought) {
+                                    html += `<div class="thought" style="margin-left:20px; font-size:0.78rem;">💭 ${s.thought}</div>`;
+                                }
+                            }
+                        });
                         html += '</div>';
                     }
                     if (event.dead_players && event.dead_players.length) {

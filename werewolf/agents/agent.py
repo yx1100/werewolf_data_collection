@@ -25,7 +25,7 @@ class Agent:
     """
 
     def __init__(self, player_id: int, role: str, personality: dict,
-                 llm_client: LLMClient):
+                 llm_client: LLMClient, teammates: list[int] | None = None):
         self.player_id = player_id
         self.role = role
         self.personality = personality
@@ -36,7 +36,7 @@ class Agent:
         self._private_info: list[str] = []
 
         # Multi-turn conversation history (system prompt + all turns)
-        self._system_prompt = build_system_prompt(player_id, role, personality)
+        self._system_prompt = build_system_prompt(player_id, role, personality, teammates)
         self._history: list[dict] = [
             {"role": "system", "content": self._system_prompt}
         ]
@@ -188,8 +188,15 @@ class Agent:
         ]
 
 
-def create_agent_factory(llm_client: LLMClient):
-    """Return a factory function for creating agents with a shared LLM client."""
+def create_agent_factory(llm_client: LLMClient,
+                         teammates_map: dict[int, list[int]] | None = None):
+    """Return a factory function for creating agents with a shared LLM client.
+
+    Args:
+        teammates_map: Optional mapping of player_id → list of teammate IDs.
+                       Used for werewolves to know their pack permanently.
+    """
+    tm = teammates_map or {}
 
     def factory(player_id: int, role: str, personality: dict) -> Agent:
         return Agent(
@@ -197,6 +204,7 @@ def create_agent_factory(llm_client: LLMClient):
             role=role,
             personality=personality,
             llm_client=llm_client,
+            teammates=tm.get(player_id),
         )
 
     return factory
