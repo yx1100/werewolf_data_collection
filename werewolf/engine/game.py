@@ -1195,6 +1195,14 @@ class Game:
                         "message": f"{shot_target}号玩家（被猎人带走）的遗言：{target_output.speech}",
                         "thought": target_output.thought or "",
                     })
+        else:
+            # Nobody eliminated (tie or PK tie → safe day)
+            events.append({
+                "type": "vote_result",
+                "eliminated": None,
+                "tie": True,
+                "visibility": "public",
+            })
 
         record = {
             "phase": "DAY_RESULT",
