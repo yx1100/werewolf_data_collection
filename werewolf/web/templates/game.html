@@ -317,7 +317,11 @@
             div.className = 'event ' + cls;
             div.innerHTML = html;
             log.appendChild(div);
-            log.scrollTop = log.scrollHeight;
+            // Auto-scroll only if user is near the bottom (not reading history)
+            var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+            if (atBottom) {
+                log.scrollTop = log.scrollHeight;
+            }
         }
 
         function renderSettlement(event) {
