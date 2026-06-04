@@ -16,17 +16,26 @@
         .card { background: #0f1011; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #23252a; }
         .card h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 16px; color: #d0d6e0; }
         .form-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
-        .form-group { flex: 1; min-width: 200px; }
-        .form-group label { display: block; margin-bottom: 6px; color: #8a8f98; font-size: 0.8125rem; font-weight: 500; }
-        .form-group select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #23252a; background: #141516; color: #f7f8f8; font-size: 0.875rem; font-family: 'Inter', sans-serif; transition: border-color 0.15s; cursor: pointer; }
-        .form-group select:focus { outline: none; border-color: #5e6ad2; }
+        .form-group { flex: 1; min-width: 160px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #8a8f98; font-size: 0.8125rem; font-weight: 500; white-space: nowrap; }
+        .form-group select, .form-group input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #23252a; background: #141516; color: #f7f8f8; font-size: 0.875rem; font-family: 'Inter', sans-serif; transition: border-color 0.15s; cursor: pointer; height: 42px; }
+        .form-group select:focus, .form-group input:focus { outline: none; border-color: #5e6ad2; }
         .form-group select option { background: #141516; color: #f7f8f8; }
-        .btn { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.875rem; font-weight: 500; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; }
+        .btn { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.875rem; font-weight: 500; font-family: 'Inter', sans-serif; transition: all 0.15s; line-height: 1.4; min-height: 42px; }
         .btn-primary { background: #5e6ad2; color: white; }
         .btn-primary:hover { background: #828fff; }
-        .btn-sm { padding: 6px 12px; font-size: 0.8125rem; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8125rem; min-height: auto; }
         .btn-danger { background: transparent; color: #e94560; border: 1px solid #23252a; }
         .btn-danger:hover { background: #141516; border-color: #e94560; }
+        /* Role cards */
+        .role-card { background: #141516; border-radius: 8px; padding: 14px; border-left: 3px solid #555; display: flex; flex-direction: column; height: 100%; }
+        .role-card .role-header { font-weight: 600; margin-bottom: 4px; }
+        .role-card .role-desc { color: #d0d6e0; font-size: 0.8125rem; line-height: 1.5; flex: 1; }
+        .role-card.wolf { border-left-color: #e94560; }
+        .role-card.seer { border-left-color: #e9b845; }
+        .role-card.witch { border-left-color: #8b5cf6; }
+        .role-card.hunter { border-left-color: #27a644; }
+        .role-card.villager { border-left-color: #5e6ad2; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #23252a; }
         th { color: #8a8f98; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -48,27 +57,27 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="api_provider">选择模型提供商</label>
-                        <select name="api_provider" id="api_provider" onchange="updateModelPlaceholder()">
+                        <select name="api_provider" id="api_provider">
                             <option value="deepseek">DeepSeek</option>
                             <option value="qwen">Qwen (通义千问)</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="model_name">模型名称</label>
-                        <select name="model_name" id="model_name" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #23252a; background:#141516; color:#f7f8f8; font-size:0.875rem; font-family:'Inter',sans-serif;">
+                        <select name="model_name" id="model_name">
                         </select>
                     </div>
-                    <div class="form-group" style="min-width:auto; display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" name="deep_thinking" value="on" id="deep_thinking" style="width:18px; height:18px; accent-color:#5e6ad2;" onchange="updateReasoningEffortVisibility()">
-                        <label for="deep_thinking" style="margin-bottom:0; cursor:pointer;">开启深度思考模式</label>
+                    <div class="form-group" style="min-width:auto; display:flex; align-items:center; gap:8px; height:42px; padding-top:18px;">
+                        <input type="checkbox" name="deep_thinking" value="on" id="deep_thinking" style="width:18px; height:18px; accent-color:#5e6ad2; flex-shrink:0;" onchange="updateReasoningEffortVisibility()">
+                        <label for="deep_thinking" style="margin-bottom:0; cursor:pointer; white-space:nowrap;">开启深度思考模式</label>
                     </div>
                     <div class="form-group" style="min-width:80px; flex:0.5;">
                         <label for="temperature">Temperature</label>
-                        <input type="number" name="temperature" id="temperature" min="0" max="2" step="0.1" value="0.7" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #23252a; background:#141516; color:#f7f8f8; font-size:0.875rem; font-family:'Inter',sans-serif;">
+                        <input type="number" name="temperature" id="temperature" min="0" max="2" step="0.1" value="0.7">
                     </div>
                     <div class="form-group" style="min-width:100px; flex:0.6; display:none;" id="reasoning-effort-group">
                         <label for="reasoning_effort">推理强度</label>
-                        <select name="reasoning_effort" id="reasoning_effort" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #23252a; background:#141516; color:#f7f8f8; font-size:0.875rem; font-family:'Inter',sans-serif;">
+                        <select name="reasoning_effort" id="reasoning_effort">
                             <option value="high">high</option>
                             <option value="max">max</option>
                         </select>
@@ -151,29 +160,25 @@
 
             <!-- 狼人阵营 -->
             <h3 style="font-size:0.8125rem; font-weight:500; color:#e94560; margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">🐺 狼人阵营</h3>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; margin-bottom:20px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:20px;">
                 {% for r in roles_info if r.key == 'werewolf' %}
-                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid #e94560;">
-                    <div style="font-weight:600; margin-bottom:4px;">
-                        🐺 {{ r.name }}
-                        <span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
-                    </div>
-                    <div style="color:#d0d6e0; font-size:0.8125rem; line-height:1.5;">{{ r.skill }}</div>
+                <div class="role-card wolf">
+                    <div class="role-header">🐺 {{ r.name }}<span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span></div>
+                    <div class="role-desc">{{ r.skill }}</div>
                 </div>
                 {% endfor %}
             </div>
 
             <!-- 好人阵营 -->
             <h3 style="font-size:0.8125rem; font-weight:500; color:#27a644; margin-bottom:10px; letter-spacing:0.05em; text-transform:uppercase;">🛡️ 好人阵营</h3>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
                 {% for r in roles_info if r.key != 'werewolf' %}
-                <div style="background:#141516; border-radius:8px; padding:14px; border-left:3px solid {% if r.key == 'seer' %}#e9b845{% elif r.key == 'witch' %}#8b5cf6{% elif r.key == 'hunter' %}#27a644{% else %}#5e6ad2{% endif %};">
-                    <div style="font-weight:600; margin-bottom:4px;">
+                <div class="role-card {{ r.key }}">
+                    <div class="role-header">
                         {% if r.key == 'seer' %}🔮{% elif r.key == 'witch' %}🧪{% elif r.key == 'hunter' %}🔫{% else %}👤{% endif %}
-                        {{ r.name }}
-                        <span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
+                        {{ r.name }}<span style="font-weight:400; color:#8a8f98; font-size:0.75rem;">（{{ r.team }} · {{ r.count }}人）</span>
                     </div>
-                    <div style="color:#d0d6e0; font-size:0.8125rem; line-height:1.5;">{{ r.skill }}</div>
+                    <div class="role-desc">{{ r.skill }}</div>
                 </div>
                 {% endfor %}
             </div>
