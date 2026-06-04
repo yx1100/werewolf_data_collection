@@ -313,13 +313,12 @@
                     html = JSON.stringify(event);
             }
 
+            var wasAtBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
             const div = document.createElement('div');
             div.className = 'event ' + cls;
             div.innerHTML = html;
             log.appendChild(div);
-            // Auto-scroll only if user is near the bottom (not reading history)
-            var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
-            if (atBottom) {
+            if (wasAtBottom) {
                 log.scrollTop = log.scrollHeight;
             }
         }
