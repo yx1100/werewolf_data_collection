@@ -296,6 +296,10 @@ class Game:
                     self.agents[wolf_id].add_private_info(
                         f"今晚狼人投票结果：决定击杀{self.state.werewolf_kill_target}"
                         f"号玩家（{kill_votes[self.state.werewolf_kill_target]}票）。")
+            else:
+                for wolf_id in werewolf_ids:
+                    self.agents[wolf_id].add_private_info(
+                        "今晚狼人投票未达成多数意见，无人被击杀。")
 
     async def _seer_night_action(self, seer_id: int):
         """Seer checks one player's identity."""

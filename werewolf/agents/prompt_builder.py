@@ -226,9 +226,9 @@ def _format_event(event: dict) -> str:
     if etype == "day_announce":
         return f"天亮公告：{event.get('message', '')}"
     elif etype == "death":
-        return f"{event['player_id']}号玩家死亡（{event.get('cause', '未知')}）"
+        return f"{event['player_id']}号玩家死亡"
     elif etype == "elimination":
-        return f"{event['player_id']}号玩家被放逐（身份：{event.get('role', '未知')}）"
+        return f"{event['player_id']}号玩家被放逐"
     elif etype == "hunter_shoot":
         return f"猎人开枪带走了{event.get('target')}号玩家"
     elif etype == "speech":
