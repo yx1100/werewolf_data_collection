@@ -616,6 +616,7 @@ class Game:
                     "type": "speech",
                     "player_id": player_id,
                     "speech": output.speech or "",
+                    "thought": output.thought or "",
                     "phase": "day_discussion",
                 })
 
@@ -684,6 +685,7 @@ class Game:
                         "type": "speech",
                         "player_id": player_id,
                         "speech": output.speech or "",
+                        "thought": output.thought or "",
                         "phase": "day_free_discussion",
                     })
 
@@ -847,6 +849,7 @@ class Game:
                     "type": "last_words",
                     "player_id": eliminated,
                     "message": f"{eliminated}号玩家的遗言：{output.speech}",
+                    "thought": output.thought or "",
                 })
 
             # Hunter shot
