@@ -479,7 +479,7 @@
                     var chat = p.werewolf_chat || [];
                     for (var c = 0; c < chat.length; c++) {
                         addEvent({type: 'werewolf_chat', player_id: chat[c].player_id,
-                                  message: chat[c].message, thought: chat[c].thought || ''});
+                                  message: chat[c].message, thought: chat[c].thought?.text || ''});
                     }
                 }
 
@@ -497,7 +497,7 @@
                             addEvent({type: 'hunter_shoot', player_id: ev.player_id,
                                       target: ev.target,
                                       message: '🔫 猎人' + ev.player_id + '号昨晚死亡，开枪带走' + ev.target + '号玩家！',
-                                      thought: ev.thought || ''});
+                                      thought: ev.thought?.text || ''});
                         }
                     });
                 }
@@ -508,7 +508,7 @@
                     for (var j = 0; j < speeches.length; j++) {
                         var s = speeches[j];
                         addEvent({type: 'speech', player_id: s.player_id,
-                                  speech: s.speech, thought: s.thought || '',
+                                  speech: s.speech, thought: s.thought?.text || '',
                                   phase: p.phase.toLowerCase()});
                     }
                 }
@@ -533,7 +533,7 @@
                     for (var j = 0; j < pkSpeeches.length; j++) {
                         var s = pkSpeeches[j];
                         addEvent({type: 'speech', player_id: s.player_id,
-                                  speech: s.speech, thought: s.thought || '',
+                                  speech: s.speech, thought: s.thought?.text || '',
                                   phase: 'pk_discussion'});
                     }
                 }
@@ -562,11 +562,11 @@
                         } else if (ev.type === 'last_words') {
                             addEvent({type: 'last_words', player_id: ev.player_id,
                                 message: ev.player_id + '号玩家遗言：' + (ev.speech || ''),
-                                thought: ev.thought || ''});
+                                thought: ev.thought?.text || ''});
                         } else if (ev.type === 'hunter_shoot') {
                             addEvent({type: 'hunter_shoot', player_id: ev.player_id, target: ev.target,
                                       message: '🔫 猎人' + ev.player_id + '号开枪带走' + ev.target + '号玩家！',
-                                      thought: ev.thought || ''});
+                                      thought: ev.thought?.text || ''});
                         }
                     }
                 }

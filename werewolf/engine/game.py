@@ -233,7 +233,7 @@ class Game:
                     msg = {
                         "player_id": wolf_id,
                         "message": output.speech,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "turn": chat_turn,
                         "visibility": "private",
                     }
@@ -270,7 +270,7 @@ class Game:
                         "role": "werewolf",
                         "action": "kill_vote",
                         "target": target,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "visibility": "private",
                     })
 
@@ -326,7 +326,7 @@ class Game:
                     "target": target,
                     "result": result_msg,
                     "result_raw": self.state.seer_check_result,
-                    "thought": output.thought or "",
+                    "thought": {"text": output.thought or "", "visibility": "private"},
                     "visibility": "private",
                 })
 
@@ -369,7 +369,7 @@ class Game:
                         "role": "witch",
                         "action": "use_antidote",
                         "target": kill_target,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "visibility": "private",
                     })
                     agent.add_private_info("你已使用解药，不再拥有解药。")
@@ -379,7 +379,7 @@ class Game:
                         "player_id": witch_id,
                         "role": "witch",
                         "action": "pass_antidote",
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "visibility": "private",
                     })
                     agent.add_private_info("你没有使用解药。")
@@ -412,7 +412,7 @@ class Game:
                         "role": "witch",
                         "action": "use_poison",
                         "target": target,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "visibility": "private",
                     })
                     agent.add_private_info("你已使用毒药，不再拥有毒药。")
@@ -421,7 +421,7 @@ class Game:
                         "player_id": witch_id,
                         "role": "witch",
                         "action": "pass_poison",
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "visibility": "private",
                     })
                     agent.add_private_info("你没有使用毒药。")
@@ -645,7 +645,7 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": pid,
                             "target": target,
-                            "thought": output.thought or "",
+                            "thought": {"text": output.thought or "", "visibility": "private"},
                             "visibility": "public",
                         })
                         self.state.push_event({
@@ -668,7 +668,7 @@ class Game:
                             events.append({
                                 "type": "last_words",
                                 "player_id": target,
-                                "thought": target_output.thought or "",
+                                "thought": {"text": target_output.thought or "", "visibility": "private"},
                                 "speech": target_output.speech,
                                 "visibility": "public",
                             })
@@ -723,7 +723,7 @@ class Game:
                 speeches.append({
                     "player_id": player_id,
                     "turn": speech_count,
-                    "thought": output.thought or "",
+                    "thought": {"text": output.thought or "", "visibility": "private"},
                     "speech": output.speech or "",
                     "visibility": "public",
                 })
@@ -785,7 +785,7 @@ class Game:
                         "player_id": player_id,
                         "turn": free_speech_count,
                         "free_round": round_num,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "speech": output.speech or "",
                         "visibility": "public",
                     })
@@ -856,7 +856,7 @@ class Game:
                     votes[player_id] = target
                     vote_entries.append({
                         "voter_id": player_id,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "target": target,
                         "visibility": "public",
                     })
@@ -947,7 +947,7 @@ class Game:
                 speeches.append({
                     "player_id": player_id,
                     "turn": speech_count,
-                    "thought": output.thought or "",
+                    "thought": {"text": output.thought or "", "visibility": "private"},
                     "speech": output.speech or "",
                     "visibility": "public",
                 })
@@ -1002,7 +1002,7 @@ class Game:
                     votes[player_id] = target
                     vote_entries.append({
                         "voter_id": player_id,
-                        "thought": output.thought or "",
+                        "thought": {"text": output.thought or "", "visibility": "private"},
                         "target": target,
                         "visibility": "public",
                     })
@@ -1133,7 +1133,7 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": eliminated,
                             "target": target,
-                            "thought": hunter_output.thought or "",
+                            "thought": {"text": hunter_output.thought or "", "visibility": "private"},
                             "visibility": "public",
                         })
                         self.state.push_event({
@@ -1158,7 +1158,7 @@ class Game:
                 events.append({
                     "type": "last_words",
                     "player_id": eliminated,
-                    "thought": output.thought or "",
+                    "thought": {"text": output.thought or "", "visibility": "private"},
                     "speech": output.speech,
                     "visibility": "public",
                 })
@@ -1185,7 +1185,7 @@ class Game:
                     events.append({
                         "type": "last_words",
                         "player_id": shot_target,
-                        "thought": target_output.thought or "",
+                        "thought": {"text": target_output.thought or "", "visibility": "private"},
                         "speech": target_output.speech,
                         "visibility": "public",
                     })
@@ -1292,7 +1292,7 @@ class Game:
             if a.get("role") == "seer" and a.get("action") == "check":
                 summary.append({
                     "text": f"预言家查验了 {a.get('target')} 号玩家（结果为：{a.get('result', '?')}）",
-                    "thought": a.get("thought", ""),
+                    "thought": a.get("thought", {}).get("text", ""),
                     "role": "seer",
                 })
                 break
@@ -1303,25 +1303,25 @@ class Game:
                 if a.get("action") == "use_antidote":
                     summary.append({
                         "text": f"女巫使用了解药，救活了 {a.get('target')} 号玩家",
-                        "thought": a.get("thought", ""),
+                        "thought": a.get("thought", {}).get("text", ""),
                         "role": "witch",
                     })
                 elif a.get("action") == "use_poison":
                     summary.append({
                         "text": f"女巫使用了毒药，毒杀了 {a.get('target')} 号玩家",
-                        "thought": a.get("thought", ""),
+                        "thought": a.get("thought", {}).get("text", ""),
                         "role": "witch",
                     })
                 elif a.get("action") == "pass_antidote":
                     summary.append({
                         "text": "女巫没有使用解药",
-                        "thought": a.get("thought", ""),
+                        "thought": a.get("thought", {}).get("text", ""),
                         "role": "witch",
                     })
                 elif a.get("action") == "pass_poison":
                     summary.append({
                         "text": "女巫没有使用毒药",
-                        "thought": a.get("thought", ""),
+                        "thought": a.get("thought", {}).get("text", ""),
                         "role": "witch",
                     })
 
