@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 import time
 from typing import Any
 
@@ -273,14 +274,11 @@ class Game:
                         "visibility": "private",
                     })
 
-        # Majority vote for kill (need > half of wolves to agree)
+        # Kill target: highest vote wins; tie → random among tied
         if kill_votes:
-            target = max(kill_votes, key=kill_votes.get)
-            if kill_votes[target] > len(werewolf_ids) // 2:  # e.g. 3 wolves → >1 (need 2+); 1 wolf → >0 (need 1+)
-                self.state.werewolf_kill_target = target
-            else:
-                # No majority — no kill this night
-                self.state.werewolf_kill_target = None
+            max_votes = max(kill_votes.values())
+            top_candidates = [t for t, c in kill_votes.items() if c == max_votes]
+            self.state.werewolf_kill_target = random.choice(top_candidates)
             self.state.current_actions.append({
                 "player_id": 0,
                 "role": "werewolf",

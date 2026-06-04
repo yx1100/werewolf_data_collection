@@ -54,6 +54,10 @@ class Agent:
 
         Returns None if the LLM call fails.
         """
+        # Inject player role for role-aware prompts
+        context = dict(context)
+        context.setdefault("player_role", self.role)
+
         # Build the current user message
         user_msg = build_user_message(context)
 

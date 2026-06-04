@@ -38,6 +38,14 @@ def build_system_prompt(player_id: int, role: str, personality: dict,
     if role == "werewolf" and teammates:
         teammate_str = "、".join(str(t) for t in sorted(teammates))
         parts.append(f"你的狼人同伴是：{teammate_str}号玩家。请记住你的队友，在白天发言时要保护他们、避免暴露他们。")
+        parts.append("")
+        parts.append("[狼人战术参考]")
+        parts.append("你可以选择以下战术角色，与队友在夜间讨论中协调分工：")
+        parts.append("- 悍跳狼：冒充预言家，编造查验结果（发金水/查杀）来主导发言，与真预言家竞争。")
+        parts.append("- 冲锋狼：坚定支持悍跳狼队友，积极发言带节奏，争取好人支持。")
+        parts.append("- 倒钩狼：站边真好人阵营，踩自己的狼队友，在好人中建立高身份。")
+        parts.append("- 深水狼：全程低调发言，扮演毫无存在感的平民，活到最后掌控关键一刀。")
+        parts.append("核心原则：发言时伪装成好人，避免暴露信息优势；白天可与队友串联绑票。")
     parts.append("")
     parts.append("游戏规则概要：")
     parts.append("- 本局共9名玩家：3狼人、1预言家、1女巫、1猎人、3平民。")
@@ -64,6 +72,14 @@ def build_user_message(context: dict) -> str:
 
     parts = []
     parts.append(f"当前存活玩家：{alive_str}。")
+
+    # Role reminder for werewolves during day phases
+    player_role = context.get("player_role", "")
+    day_phases = {"DAY_DISCUSSION", "DAY_FREE_DISCUSSION", "VOTING",
+                  "PK_DISCUSSION", "PK_VOTING", "LAST_WORDS"}
+    if player_role == "werewolf" and phase in day_phases:
+        parts.append("[注意] 你是狼人。请在发言和投票中伪装成好人，保护你的狼队友，"
+                     "避免暴露身份或信息优势。")
 
     # Grounding for first night: no public events have occurred yet
     discussion = context.get("discussion_so_far", [])
@@ -128,16 +144,21 @@ def _phase_instructions(phase: str, context: dict) -> str:
         "NIGHT_WEREWOLF_CHAT": (
             f"现在是第{context.get('round', 1)}夜狼人讨论阶段。"
             + ("注意：这是第一夜，还没有进行过任何白天讨论，也没有玩家公开发言过。"
-               "请根据狼队友身份和游戏策略讨论击杀目标，不要引用尚未发生的发言或事件。\n"
+               "请根据狼队友身份和游戏策略讨论，不要引用尚未发生的发言或事件。\n"
                if context.get('round', 1) == 1 else
-               "请根据之前的游戏进展和狼队友讨论击杀目标。\n")
+               "请根据之前的游戏进展和狼队友讨论。\n")
             + f"你的狼人同伴是：{context.get('werewolf_teammates', [])}号玩家。\n"
+            "请与同伴讨论以下内容：\n"
+            "1. 今晚击杀目标（可协商空刀不杀人以制造平安夜混淆好人）\n"
+            "2. 白天发言分工（谁悍跳预言家、谁冲锋带节奏、谁倒钩站边好人、谁深水低调）\n"
+            "3. 投票协调（绑票目标，集中投票放逐一名好人）\n"
             "请与同伴讨论今晚要击杀的目标。请以 JSON 格式输出（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你的分析和建议", "speech": "你的发言", "action": {"type": "discuss"}}'
         ),
 
         "NIGHT_WEREWOLF_KILL": (
             f"请投票选择今晚要击杀的目标。可选目标：{valid_str}\n"
+            "注意：你也可选择不杀人（空刀），但需全队一致同意才会生效。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你的推理过程", "action": {"type": "kill_vote", "target": <目标玩家编号>}}'
         ),
