@@ -274,6 +274,9 @@
                 case 'hunter_shoot':
                     cls = 'event-death';
                     html = `<div>🔫 ${event.message || ''}</div>`;
+                    if (event.thought) {
+                        html += `<div class="thought">💭 ${event.thought}</div>`;
+                    }
                     markPlayerDead(event.target);
                     break;
                 case 'game_paused':
@@ -470,45 +473,42 @@
                     }
                 }
 
-                // DAY_ANNOUNCE: render deaths + night summary
+                // DAY_ANNOUNCE: render deaths + night summary + hunter shoots
                 if (p.phase === 'DAY_ANNOUNCE') {
                     var nsData = p.night_summary;
                     var nsList = Array.isArray(nsData) ? nsData : (nsData && nsData.data) || [];
+                    var dayEvents = p.events || [];
+                    var deadPlayers = dayEvents.filter(function(e){return e.type==='death'}).map(function(e){return e.player_id;});
                     addEvent({type: 'day_announce', message: p.message || '',
-                              night_summary: nsList,
-                              dead_players: (p.events || []).filter(function(e){return e.type==='death'}).map(function(e){return e.player_id;})});
+                              night_summary: nsList, dead_players: deadPlayers});
+                    // Render hunter_shoot events separately (night-killed hunter)
+                    dayEvents.forEach(function(ev) {
+                        if (ev.type === 'hunter_shoot') {
+                            addEvent({type: 'hunter_shoot', player_id: ev.player_id,
+                                      target: ev.target,
+                                      message: '🔫 猎人' + ev.player_id + '号昨晚死亡，开枪带走' + ev.target + '号玩家！',
+                                      thought: ev.thought || ''});
+                        }
+                    });
                 }
 
-                // DAY_DISCUSSION / DAY_FREE_DISCUSSION: render speeches + paired thoughts
+                // DAY_DISCUSSION / DAY_FREE_DISCUSSION: thought is inline in each speech entry
                 if (p.phase === 'DAY_DISCUSSION' || p.phase === 'DAY_FREE_DISCUSSION') {
                     var speeches = p.speeches || [];
-                    // Build a lookup of private thoughts by player_id + turn
-                    var thoughts = {};
-                    for (var j = 0; j < speeches.length; j++) {
-                        var st = speeches[j];
-                        if (st.visibility === 'private' && st.thought) {
-                            thoughts[st.player_id + '_' + st.turn] = st.thought;
-                        }
-                    }
                     for (var j = 0; j < speeches.length; j++) {
                         var s = speeches[j];
-                        if (s.visibility !== 'private') {
-                            var thoughtKey = s.player_id + '_' + s.turn;
-                            addEvent({type: 'speech', player_id: s.player_id,
-                                      speech: s.speech, thought: thoughts[thoughtKey] || '',
-                                      phase: p.phase.toLowerCase()});
-                        }
+                        addEvent({type: 'speech', player_id: s.player_id,
+                                  speech: s.speech, thought: s.thought || '',
+                                  phase: p.phase.toLowerCase()});
                     }
                 }
 
-                // VOTING: render vote result
+                // VOTING: thought is inline in each vote entry
                 if (p.phase === 'VOTING') {
                     var result = p.result || {};
                     var voteEvents = [];
                     (p.votes || []).forEach(function(v) {
-                        if (v.visibility !== 'private') {
-                            voteEvents.push({voter_id: v.voter_id, target: v.target});
-                        }
+                        voteEvents.push({voter_id: v.voter_id, target: v.target});
                     });
                     var eliminated = result.eliminated;
                     addEvent({type: 'vote_result',
@@ -517,30 +517,21 @@
                               tally: result.vote_count || {}});
                 }
 
-                // DAY_RESULT: render elimination, last words (with thought), hunter
+                // DAY_RESULT: thought is inline in last_words and hunter_shoot events
                 if (p.phase === 'DAY_RESULT') {
                     var events = p.events || [];
-                    // Build thought lookup for last_words
-                    var lwThoughts = {};
-                    for (var k = 0; k < events.length; k++) {
-                        var evt = events[k];
-                        if (evt.type === 'last_words_thought') {
-                            lwThoughts[evt.player_id] = evt.thought || '';
-                        }
-                    }
                     for (var k = 0; k < events.length; k++) {
                         var ev = events[k];
-                        if (ev.visibility !== 'private') {
-                            if (ev.type === 'elimination') {
-                                addEvent({type: 'elimination', player_id: ev.player_id, message: ev.player_id + '号玩家被放逐。'});
-                            } else if (ev.type === 'last_words') {
-                                addEvent({type: 'last_words', player_id: ev.player_id,
-                                    message: ev.player_id + '号玩家遗言：' + (ev.speech || ''),
-                                    thought: lwThoughts[ev.player_id] || ''});
-                            } else if (ev.type === 'hunter_shoot') {
-                                addEvent({type: 'hunter_shoot', player_id: ev.player_id, target: ev.target,
-                                          message: '🔫 猎人' + ev.player_id + '号开枪带走' + ev.target + '号玩家！'});
-                            }
+                        if (ev.type === 'elimination') {
+                            addEvent({type: 'elimination', player_id: ev.player_id, message: ev.player_id + '号玩家被放逐。'});
+                        } else if (ev.type === 'last_words') {
+                            addEvent({type: 'last_words', player_id: ev.player_id,
+                                message: ev.player_id + '号玩家遗言：' + (ev.speech || ''),
+                                thought: ev.thought || ''});
+                        } else if (ev.type === 'hunter_shoot') {
+                            addEvent({type: 'hunter_shoot', player_id: ev.player_id, target: ev.target,
+                                      message: '🔫 猎人' + ev.player_id + '号开枪带走' + ev.target + '号玩家！',
+                                      thought: ev.thought || ''});
                         }
                     }
                 }

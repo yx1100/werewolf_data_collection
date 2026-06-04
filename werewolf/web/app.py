@@ -304,6 +304,16 @@ async def start_game(request: Request):
         data_dir=str(_get_data_dir()),
         api_provider=api_provider,
         model=api_config.get("model", "unknown"),
+        hyperparams={
+            "temperature": api_config.get("temperature"),
+            "reasoning_effort": api_config.get("reasoning_effort"),
+            "deep_thinking": use_deep_thinking,
+            "thinking_budget": thinking_budget,
+            "preserve_thinking": preserve_thinking,
+            "phase_delay_seconds": game_config.get("phase_delay_seconds"),
+            "free_discussion_rounds": game_config.get("free_discussion_rounds"),
+            "witch_self_save_first_night": game_config.get("witch_self_save_first_night"),
+        },
     )
 
     # Create game

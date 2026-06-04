@@ -198,6 +198,7 @@ class Game:
         """Werewolves chat with each other, then vote on kill target."""
         # Step 1: Werewolf discussion (each wolf can speak multiple times in a chat loop)
         chat_history: list[dict] = []
+        chat_turn = 0
 
         # Werewolves discuss — give them a few rounds of chat
         chat_rounds = 3
@@ -215,10 +216,12 @@ class Game:
                 }
                 output = await agent.decide(context)
                 if output and output.speech:
+                    chat_turn += 1
                     msg = {
                         "player_id": wolf_id,
                         "message": output.speech,
                         "thought": output.thought or "",
+                        "turn": chat_turn,
                         "visibility": "private",
                     }
                     chat_history.append(msg)
@@ -395,26 +398,44 @@ class Game:
         return f"你的狼人同伴是：{teammates}号玩家。请与同伴讨论今晚要击杀的目标。"
 
     def _public_history(self) -> list[dict]:
-        """Return public events (speeches, deaths, eliminations) — filters out private content."""
+        """Return public events visible to all players — private thoughts stripped.
+
+        Convention:
+        - 'thought' field is always private → strip it from any entry.
+        - Entries with 'visibility: private' are entirely private → skip them.
+        - All other entries are public.
+        """
         events = []
         for record in self.state.phase_records:
             phase = record["phase"]
-            if phase == "DAY_ANNOUNCE":
+            if phase == "NIGHT":
+                continue  # all night entries are private
+            elif phase == "DAY_ANNOUNCE":
                 for e in record.get("events", []):
                     if e.get("visibility") != "private":
                         events.append(e)
             elif phase in ("DAY_DISCUSSION", "DAY_FREE_DISCUSSION"):
                 for s in record.get("speeches", []):
-                    if s.get("visibility") != "private":
-                        events.append(s)
-            elif phase == "DAY_RESULT":
-                for e in record.get("events", []):
-                    if e.get("visibility") != "private":
-                        events.append(e)
+                    entry = dict(s)
+                    entry.pop("thought", None)  # strip private field
+                    entry.setdefault("type", "speech")
+                    events.append(entry)
             elif phase == "VOTING":
                 for v in record.get("votes", []):
-                    if v.get("visibility") != "private":
-                        events.append(v)
+                    entry = dict(v)
+                    entry.pop("thought", None)
+                    events.append(entry)
+            elif phase == "DAY_RESULT":
+                for e in record.get("events", []):
+                    entry = dict(e)
+                    entry.pop("thought", None)
+                    events.append(entry)
+            elif phase == "GAME_OVER":
+                events.append({
+                    "type": "game_over",
+                    "winner": record.get("winner"),
+                    "round": record.get("round"),
+                })
         return events
 
     def _seer_history(self, seer_id: int) -> list[dict]:
@@ -513,7 +534,7 @@ class Game:
         # Build events list for record
         events = [
             {"type": "death", "player_id": d["player_id"],
-             "cause": d["cause"], "visibility": "public"}
+             "cause": d["cause"]}
             for d in deaths
         ]
 
@@ -544,7 +565,7 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": pid,
                             "target": target,
-                            "visibility": "public",
+                            "thought": output.thought or "",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",
@@ -592,19 +613,12 @@ class Game:
             output = await agent.decide(context)
             if output:
                 speech_count += 1
-                # Public speech record
+                # Unified entry: thought (private) + speech (public), thought first
                 speeches.append({
                     "player_id": player_id,
-                    "speech": output.speech or "",
                     "turn": speech_count,
-                    "visibility": "public",
-                })
-                # Private thought record
-                speeches.append({
-                    "player_id": player_id,
                     "thought": output.thought or "",
-                    "turn": speech_count,
-                    "visibility": "private",
+                    "speech": output.speech or "",
                 })
                 discussion_context.append({
                     "player_id": player_id,
@@ -658,21 +672,13 @@ class Game:
                 output = await agent.decide(context)
                 if output:
                     free_speech_count += 1
-                    # Public speech record
+                    # Unified entry: thought (private) + speech (public), thought first
                     all_speeches.append({
                         "player_id": player_id,
-                        "speech": output.speech or "",
                         "turn": free_speech_count,
                         "free_round": round_num,
-                        "visibility": "public",
-                    })
-                    # Private thought record
-                    all_speeches.append({
-                        "player_id": player_id,
                         "thought": output.thought or "",
-                        "turn": free_speech_count,
-                        "free_round": round_num,
-                        "visibility": "private",
+                        "speech": output.speech or "",
                     })
                     discussion_ctx.append({
                         "player_id": player_id,
@@ -708,8 +714,7 @@ class Game:
         })
 
         votes: dict[int, int] = {}  # voter_id → target_id
-        vote_details: list[dict] = []  # for SSE (includes thought)
-        vote_records: list[dict] = []  # for phase_records (split, with visibility)
+        vote_entries: list[dict] = []  # unified: for both SSE and storage
 
         for player_id in sorted(self.state.alive_players):
             await self._check_pause_and_stop()
@@ -731,20 +736,10 @@ class Game:
                         and target in self.state.alive_players
                         and target != player_id):
                     votes[player_id] = target
-                    vote_details.append({
-                        "voter_id": player_id,
-                        "target": target,
-                        "thought": output.thought or "",
-                    })
-                    vote_records.append({
-                        "voter_id": player_id,
-                        "target": target,
-                        "visibility": "public",
-                    })
-                    vote_records.append({
+                    vote_entries.append({
                         "voter_id": player_id,
                         "thought": output.thought or "",
-                        "visibility": "private",
+                        "target": target,
                     })
 
         self.state.votes = votes
@@ -772,7 +767,7 @@ class Game:
                 "type": "vote_result",
                 "message": f"{eliminated}号玩家（{_ROLE_ZH.get(self.state.players[eliminated].role, '?')}）被投票放逐。",
                 "eliminated": eliminated,
-                "votes": vote_details,
+                "votes": vote_entries,
                 "tally": {str(k): v for k, v in tally.items()},
             })
         else:
@@ -780,19 +775,18 @@ class Game:
                 "type": "vote_result",
                 "message": "投票平票，无人被放逐。",
                 "tie": True,
-                "votes": vote_details,
+                "votes": vote_entries,
                 "tally": {str(k): v for k, v in tally.items()},
             })
 
         record = {
             "phase": "VOTING",
             "round": self.state.round,
-            "votes": vote_records,
+            "votes": vote_entries,
             "result": {
                 "eliminated": eliminated,
                 "vote_count": {str(k): v for k, v in tally.items()},
                 "tie": len(top_candidates) > 1,
-                "visibility": "public",
             },
         }
         self.state.phase_records.append(record)
@@ -813,7 +807,6 @@ class Game:
             events.append({
                 "type": "elimination",
                 "player_id": eliminated,
-                "visibility": "public",
             })
             self.state.push_event({
                 "type": "elimination",
@@ -836,16 +829,9 @@ class Game:
                 events.append({
                     "type": "last_words",
                     "player_id": eliminated,
+                    "thought": output.thought or "",
                     "speech": output.speech,
-                    "visibility": "public",
                 })
-                if output.thought:
-                    events.append({
-                        "type": "last_words_thought",
-                        "player_id": eliminated,
-                        "thought": output.thought,
-                        "visibility": "private",
-                    })
                 self.state.push_event({
                     "type": "last_words",
                     "player_id": eliminated,
@@ -860,15 +846,15 @@ class Game:
                     "message": f"猎人{eliminated}号可以开枪！",
                 })
                 await self._check_pause_and_stop()
-                output = await agent.decide(context={
+                hunter_output = await agent.decide(context={
                     "phase": "HUNTER_SHOOT",
                     "round": self.state.round,
                     "alive_players": self.state.alive_players,
                     "valid_targets": [p for p in self.state.alive_players if p != eliminated],
                     "public_history": self._public_history(),
                 })
-                if output and output.action:
-                    target = output.action.get("target")
+                if hunter_output and hunter_output.action:
+                    target = hunter_output.action.get("target")
                     if target and target in self.state.alive_players:
                         target_player = self.state.players[target]
                         target_player.is_alive = False
@@ -877,7 +863,7 @@ class Game:
                             "type": "hunter_shoot",
                             "player_id": eliminated,
                             "target": target,
-                            "visibility": "public",
+                            "thought": hunter_output.thought or "",
                         })
                         self.state.push_event({
                             "type": "hunter_shoot",

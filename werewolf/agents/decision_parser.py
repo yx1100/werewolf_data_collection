@@ -45,6 +45,21 @@ def parse_llm_response(response: dict) -> AgentOutput:
 
     try:
         data = json.loads(json_str)
+        # Defensive unpack: if speech field contains a nested JSON with
+        # thought/speech keys, unpack it (LLM sometimes returns double-encoded JSON)
+        speech_val = data.get("speech", "")
+        if isinstance(speech_val, str) and speech_val.strip().startswith("{"):
+            try:
+                nested = json.loads(speech_val)
+                if isinstance(nested, dict) and "speech" in nested:
+                    # Merge: nested thought only if outer thought is empty
+                    if not data.get("thought"):
+                        data["thought"] = nested.get("thought", "")
+                    data["speech"] = nested.get("speech", "")
+                    if "action" in nested and not data.get("action"):
+                        data["action"] = nested["action"]
+            except (json.JSONDecodeError, TypeError):
+                pass
         return AgentOutput(
             thought=data.get("thought", ""),
             speech=data.get("speech", ""),

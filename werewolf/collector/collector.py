@@ -15,10 +15,11 @@ class GameCollector:
     """Collects all game data during play and writes to disk on completion."""
 
     def __init__(self, data_dir: str = "data", api_provider: str = "",
-                 model: str = ""):
+                 model: str = "", hyperparams: dict | None = None):
         self.data_dir = Path(data_dir)
         self.api_provider = api_provider
         self.model = model
+        self.hyperparams = hyperparams or {}
         self.output_path: Path | None = None
         self.duration_seconds: float | None = None
 
@@ -55,11 +56,20 @@ class GameCollector:
             duration_display = f"{minutes}分{seconds}秒"
 
         return {
+            "schema_version": "2.0",
             "game_id": state.game_id,
             "timestamp": datetime.now().isoformat(),
             "config": {
                 "api_provider": self.api_provider,
                 "model": self.model,
+                "temperature": self.hyperparams.get("temperature"),
+                "reasoning_effort": self.hyperparams.get("reasoning_effort"),
+                "deep_thinking": self.hyperparams.get("deep_thinking", False),
+                "thinking_budget": self.hyperparams.get("thinking_budget", 0),
+                "preserve_thinking": self.hyperparams.get("preserve_thinking", False),
+                "phase_delay_seconds": self.hyperparams.get("phase_delay_seconds"),
+                "free_discussion_rounds": self.hyperparams.get("free_discussion_rounds"),
+                "witch_self_save_first_night": self.hyperparams.get("witch_self_save_first_night"),
                 "players": players_config,
             },
             "phases": state.phase_records,

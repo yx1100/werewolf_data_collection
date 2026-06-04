@@ -191,6 +191,16 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
         data_dir=str(root / "data"),
         api_provider=provider,
         model=api_config.get("model", "unknown"),
+        hyperparams={
+            "temperature": api_config.get("temperature"),
+            "reasoning_effort": api_config.get("reasoning_effort"),
+            "deep_thinking": deep_thinking,
+            "thinking_budget": game_config.get("thinking_budget", 0),
+            "preserve_thinking": game_config.get("preserve_thinking", False),
+            "phase_delay_seconds": game_config.get("phase_delay_seconds"),
+            "free_discussion_rounds": game_config.get("free_discussion_rounds"),
+            "witch_self_save_first_night": game_config.get("witch_self_save_first_night"),
+        },
     )
 
     # Create and run game

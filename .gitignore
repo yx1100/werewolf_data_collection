@@ -10,3 +10,4 @@ venv/
 .idea/
 .vscode/
 dist/
+.claude/settings.json
