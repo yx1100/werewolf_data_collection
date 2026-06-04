@@ -104,6 +104,20 @@ def build_user_message(context: dict) -> str:
     return "\n".join(parts)
 
 
+def _witch_potion_status(context: dict) -> str:
+    """Build a human-readable potion inventory string for the witch."""
+    parts = ["你的药水状态："]
+    if context.get("witch_antidote_used"):
+        parts.append("解药已使用；")
+    else:
+        parts.append("还有解药；")
+    if context.get("witch_poison_used"):
+        parts.append("毒药已使用。")
+    else:
+        parts.append("还有毒药。")
+    return "".join(parts) + "\n"
+
+
 def _phase_instructions(phase: str, context: dict) -> str:
     """Get instructions for the current phase."""
     alive = context.get("alive_players", [])
@@ -135,7 +149,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
         ),
 
         "NIGHT_WITCH_ANTIDOTE": (
-            f"昨晚{context.get('killed_player')}号玩家被狼人杀害。\n"
+            f"现在是第{context.get('round', 1)}夜。"
+            + _witch_potion_status(context)
+            + f"昨晚{context.get('killed_player')}号玩家被狼人杀害。\n"
             f"你要使用解药救活TA吗？"
             + ("（注意：你本人被杀害，首夜可以自救。）" if context.get("can_self_save") else "")
             + "\n输出格式（只输出 JSON，不要有其他文字）：\n"
@@ -143,7 +159,11 @@ def _phase_instructions(phase: str, context: dict) -> str:
         ),
 
         "NIGHT_WITCH_POISON": (
-            f"你要使用毒药毒杀一名玩家吗？可选目标：{valid_str}\n"
+            f"现在是第{context.get('round', 1)}夜。"
+            + _witch_potion_status(context)
+            + (f"你已知道昨晚被杀害的玩家是{context.get('killed_player')}号。\n"
+               if context.get('killed_player') is not None else "")
+            + f"你要使用毒药毒杀一名玩家吗？可选目标：{valid_str}\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你的考虑", "action": {"type": "use_poison", "target": <目标>} 或 {"type": "pass"}}'
         ),
@@ -162,6 +182,7 @@ def _phase_instructions(phase: str, context: dict) -> str:
 
         "VOTING": (
             f"请投票放逐一名玩家。可选目标：{valid_str}\n"
+            "注意：平票时无人被放逐。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你投票给谁，为什么", "action": {"type": "vote", "target": <目标玩家编号>}}'
         ),
@@ -173,7 +194,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
         ),
 
         "HUNTER_SHOOT": (
-            f"你是猎人！你可以开枪带走一名玩家。可选目标：{valid_str}\n"
+            ("你被狼人夜间杀害。" if context.get("cause") == "night_kill"
+             else "你被投票放逐。")
+            + f"你是猎人！你可以开枪带走一名玩家。可选目标：{valid_str}\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你要带谁走，为什么", "action": {"type": "shoot", "target": <目标玩家编号>}}'
         ),

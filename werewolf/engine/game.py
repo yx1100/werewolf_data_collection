@@ -285,8 +285,8 @@ class Game:
             "phase": "NIGHT_SEER",
             "round": self.state.round,
             "alive_players": self.state.alive_players,
+            "valid_targets": [p for p in self.state.alive_players if p != seer_id],
             "public_history": self._public_history(),
-            "private_history": self._seer_history(seer_id),
         }
         output = await agent.decide(context)
         if output and output.action:
@@ -330,6 +330,10 @@ class Game:
                 "alive_players": self.state.alive_players,
                 "killed_player": kill_target,
                 "can_self_save": can_self_save,
+                "witch_has_antidote": self.state.witch_has_antidote,
+                "witch_has_poison": self.state.witch_has_poison,
+                "witch_antidote_used": self.state.witch_antidote_used,
+                "witch_poison_used": self.state.witch_poison_used,
                 "public_history": self._public_history(),
             }
             output = await agent.decide(context)
@@ -347,6 +351,7 @@ class Game:
                         "thought": output.thought or "",
                         "visibility": "private",
                     })
+                    agent.add_private_info("你已使用解药，不再拥有解药。")
                 else:
                     self.state.witch_antidote_target = None
                     self.state.current_actions.append({
@@ -356,6 +361,7 @@ class Game:
                         "thought": output.thought or "",
                         "visibility": "private",
                     })
+                    agent.add_private_info("你没有使用解药。")
 
         # Poison decision
         if self.state.witch_has_poison and not self.state.witch_poison_used:
@@ -363,7 +369,12 @@ class Game:
                 "phase": "NIGHT_WITCH_POISON",
                 "round": self.state.round,
                 "alive_players": self.state.alive_players,
+                "valid_targets": [p for p in self.state.alive_players if p != witch_id],
                 "killed_player": kill_target if (self.state.witch_has_antidote and not self.state.witch_antidote_used) else None,
+                "witch_has_antidote": self.state.witch_has_antidote,
+                "witch_has_poison": self.state.witch_has_poison,
+                "witch_antidote_used": self.state.witch_antidote_used,
+                "witch_poison_used": self.state.witch_poison_used,
                 "public_history": self._public_history(),
             }
             output = await agent.decide(context)
@@ -383,6 +394,7 @@ class Game:
                         "thought": output.thought or "",
                         "visibility": "private",
                     })
+                    agent.add_private_info("你已使用毒药，不再拥有毒药。")
                 else:
                     self.state.current_actions.append({
                         "player_id": witch_id,
@@ -391,6 +403,7 @@ class Game:
                         "thought": output.thought or "",
                         "visibility": "private",
                     })
+                    agent.add_private_info("你没有使用毒药。")
 
     def _build_werewolf_context(self, werewolf_ids: list[int]) -> str:
         """Build context for werewolf discussion."""
@@ -417,7 +430,9 @@ class Game:
                     events.append({"type": "day_announce", "message": msg})
                 for e in record.get("events", []):
                     if e.get("visibility") != "private":
-                        events.append(e)
+                        entry = dict(e)
+                        entry.pop("thought", None)  # strip private field
+                        events.append(entry)
             elif phase in ("DAY_DISCUSSION", "DAY_FREE_DISCUSSION"):
                 for s in record.get("speeches", []):
                     entry = dict(s)
@@ -501,6 +516,11 @@ class Game:
             self.state.players[pid].poisoned = death.get("poisoned", False)
             if pid in self.state.alive_players:
                 self.state.alive_players.remove(pid)
+            # Notify surviving werewolves if a teammate died
+            if self.state.players[pid].role == "werewolf":
+                for w in self.state.get_alive_werewolves():
+                    self.agents[w].add_private_info(
+                        f"你的狼队友{pid}号已死亡。")
 
         # Store deaths for announcement
         self.state.current_events = deaths
@@ -557,6 +577,7 @@ class Game:
                     "alive_players": self.state.alive_players,
                     "valid_targets": [p for p in self.state.alive_players if p != pid],
                     "public_history": self._public_history(),
+                    "cause": "night_kill",
                 })
                 if output and output.action:
                     target = output.action.get("target")
@@ -720,6 +741,13 @@ class Game:
         votes: dict[int, int] = {}  # voter_id → target_id
         vote_entries: list[dict] = []  # unified: for both SSE and storage
 
+        # Build discussion_so_far from the most recent discussion phase
+        discussion_so_far: list[dict] = []
+        for r in reversed(self.state.phase_records):
+            if r.get("phase") in ("DAY_DISCUSSION", "DAY_FREE_DISCUSSION"):
+                discussion_so_far = list(r.get("speeches", []))
+                break
+
         for player_id in sorted(self.state.alive_players):
             await self._check_pause_and_stop()
             agent = self.agents[player_id]
@@ -727,6 +755,7 @@ class Game:
                 "phase": "VOTING",
                 "round": self.state.round,
                 "alive_players": self.state.alive_players,
+                "discussion_so_far": discussion_so_far,
                 "public_history": self._public_history(),
                 "valid_targets": [p for p in self.state.alive_players
                                   if p != player_id],
@@ -856,6 +885,7 @@ class Game:
                     "alive_players": self.state.alive_players,
                     "valid_targets": [p for p in self.state.alive_players if p != eliminated],
                     "public_history": self._public_history(),
+                    "cause": "vote_out",
                 })
                 if hunter_output and hunter_output.action:
                     target = hunter_output.action.get("target")
