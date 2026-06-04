@@ -411,6 +411,10 @@ class Game:
             if phase == "NIGHT":
                 continue  # all night entries are private
             elif phase == "DAY_ANNOUNCE":
+                # Inject the day announcement message as a synthetic event
+                msg = record.get("message", "")
+                if msg:
+                    events.append({"type": "day_announce", "message": msg})
                 for e in record.get("events", []):
                     if e.get("visibility") != "private":
                         events.append(e)

@@ -185,7 +185,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
 def _format_event(event: dict) -> str:
     """Format a history event as a readable string."""
     etype = event.get("type", "")
-    if etype == "death":
+    if etype == "day_announce":
+        return f"天亮公告：{event.get('message', '')}"
+    elif etype == "death":
         return f"{event['player_id']}号玩家死亡（{event.get('cause', '未知')}）"
     elif etype == "elimination":
         return f"{event['player_id']}号玩家被放逐（身份：{event.get('role', '未知')}）"
