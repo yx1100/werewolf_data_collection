@@ -121,7 +121,8 @@ def assign_personalities(personalities: list, spec: str) -> list:
 
 
 async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
-                       personalities_spec: str = ""):
+                       personalities_spec: str = "", temperature: float | None = None,
+                       reasoning_effort: str | None = None):
     """Run a single game from the CLI (no web UI)."""
     from werewolf.engine.game import Game
     from werewolf.llm import create_llm_client
@@ -151,6 +152,14 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
     # Override model name if provided
     if model_name.strip():
         api_config["model"] = model_name.strip()
+
+    # Override temperature if provided
+    if temperature is not None:
+        api_config["temperature"] = temperature
+
+    # Override reasoning_effort if provided
+    if reasoning_effort:
+        api_config["reasoning_effort"] = reasoning_effort
 
     # Create LLM client
     llm_client = create_llm_client(
@@ -299,6 +308,13 @@ def main():
         "--model", default="",
         help="Override model name (default from api_config.yaml)")
     parser.add_argument(
+        "--temperature", type=float, default=None,
+        help="Override temperature (0.0-2.0, default from api_config.yaml)")
+    parser.add_argument(
+        "--reasoning-effort", default=None,
+        choices=["high", "max"],
+        help="Override reasoning effort for DeepSeek (high/max, only with --thinking)")
+    parser.add_argument(
         "--cli", action="store_true",
         help="Run a single game in CLI mode instead of starting web server")
     parser.add_argument(
@@ -361,7 +377,8 @@ def main():
 
     if args.cli:
         asyncio.run(run_cli_game(args.provider, args.thinking, args.model,
-                                 args.personalities))
+                                 args.personalities, args.temperature,
+                                 args.reasoning_effort))
     else:
         import uvicorn
         from werewolf.web.app import app

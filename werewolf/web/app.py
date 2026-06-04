@@ -242,6 +242,21 @@ async def start_game(request: Request):
             )
         api_config["model"] = model_name.strip()
 
+    # Override temperature if provided
+    temperature_str = form_data.get("temperature", "")
+    if temperature_str.strip():
+        try:
+            temp_val = float(temperature_str.strip())
+            if 0 <= temp_val <= 2:
+                api_config["temperature"] = temp_val
+        except ValueError:
+            pass
+
+    # Override reasoning_effort if provided
+    reasoning_effort = form_data.get("reasoning_effort", "")
+    if reasoning_effort.strip():
+        api_config["reasoning_effort"] = reasoning_effort.strip()
+
     # Deep thinking settings
     use_deep_thinking = deep_thinking == "on"
     thinking_budget = game_config.get("thinking_budget", 0)
