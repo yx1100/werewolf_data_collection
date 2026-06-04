@@ -226,6 +226,7 @@ class Game:
                         "type": "werewolf_chat",
                         "player_id": wolf_id,
                         "message": output.speech,
+                        "thought": output.thought or "",
                     })
 
         self.state.current_werewolf_chat = chat_history

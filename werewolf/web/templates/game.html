@@ -216,16 +216,19 @@
                     break;
                 case 'speech':
                     cls = 'event-speech';
-                    html = `<div class="speaker">🎤 ${event.player_id}号玩家：</div>
-                            <div>${event.speech || ''}</div>`;
+                    html = `<div class="speaker">🎤 ${event.player_id}号玩家：</div>`;
                     if (event.thought) {
                         html += `<div class="thought">💭 ${event.thought}</div>`;
                     }
+                    html += `<div>${event.speech || ''}</div>`;
                     break;
                 case 'werewolf_chat':
                     cls = 'event-werewolf';
-                    html = `<div class="speaker">🐺 狼人${event.player_id}号（私下）：</div>
-                            <div>${event.message || ''}</div>`;
+                    html = `<div class="speaker">🐺 狼人${event.player_id}号（私下）：</div>`;
+                    if (event.thought) {
+                        html += `<div class="thought">💭 ${event.thought}</div>`;
+                    }
+                    html += `<div>${event.message || ''}</div>`;
                     break;
                 case 'day_announce':
                     cls = 'event-death';
@@ -287,11 +290,11 @@
                     break;
                 case 'last_words':
                     cls = 'event-action';
-                    html = `<div class="speaker">📝 ${event.player_id}号玩家遗言：</div>
-                            <div>${event.message || event.speech || ''}</div>`;
+                    html = `<div class="speaker">📝 ${event.player_id}号玩家遗言：</div>`;
                     if (event.thought) {
                         html += `<div class="thought">💭 ${event.thought}</div>`;
                     }
+                    html += `<div>${event.message || event.speech || ''}</div>`;
                     break;
                 case 'game_over':
                     cls = 'event-system';
@@ -460,7 +463,7 @@
                     var chat = p.werewolf_chat || [];
                     for (var c = 0; c < chat.length; c++) {
                         addEvent({type: 'werewolf_chat', player_id: chat[c].player_id,
-                                  message: chat[c].message});
+                                  message: chat[c].message, thought: chat[c].thought || ''});
                     }
                 }
 
