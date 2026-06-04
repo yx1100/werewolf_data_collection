@@ -24,7 +24,6 @@
         .player-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; background: #141516; border: 1px solid transparent; transition: border-color 0.15s, opacity 0.3s; }
         .player-card:hover { border-color: #23252a; }
         .player-card.dead { opacity: 0.35; }
-        .player-card.dead .player-id { filter: grayscale(1); }
         .player-id { width: 32px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8125rem; flex-shrink: 0; color: white; }
         .role-werewolf { background: #e94560; }
         .role-seer { background: #e9b845; color: #1a1a2e; }
@@ -450,40 +449,12 @@
                     phase: (phaseLabel[p.phase] || p.phase),
                     round: p.round, message: ''});
 
-                // NIGHT: render werewolf chat + actions (role-specific styling)
+                // NIGHT: render werewolf chat only (night actions are covered by DAY_ANNOUNCE night_summary)
                 if (p.phase === 'NIGHT') {
                     var chat = p.werewolf_chat || [];
                     for (var c = 0; c < chat.length; c++) {
                         addEvent({type: 'werewolf_chat', player_id: chat[c].player_id,
                                   message: chat[c].message});
-                    }
-                    var actions = p.actions || [];
-                    for (var a = 0; a < actions.length; a++) {
-                        var act = actions[a];
-                        var actMsg = '';
-                        var actCls = 'event-system';
-                        if (act.action === 'kill' || act.action === 'kill_vote') {
-                            actCls = 'event-werewolf';
-                            if (act.action === 'kill') actMsg = '🐺 狼人决定击杀 ' + act.target + ' 号玩家';
-                            else actMsg = '🐺 ' + act.player_id + '号狼人投票击杀 ' + act.target + ' 号';
-                        } else if (act.role === 'seer') {
-                            actCls = 'event-action';
-                            actMsg = '🔮 预言家查验了 ' + act.target + ' 号玩家（结果：' + (act.result || '?') + '）';
-                        } else if (act.role === 'witch') {
-                            actCls = 'event-action';
-                            if (act.action === 'use_antidote') actMsg = '🧪 女巫使用解药，救活 ' + act.target + ' 号';
-                            else if (act.action === 'use_poison') actMsg = '🧪 女巫使用毒药，毒杀 ' + act.target + ' 号';
-                            else if (act.action === 'pass_antidote') actMsg = '🧪 女巫没有使用解药';
-                            else if (act.action === 'pass_poison') actMsg = '🧪 女巫没有使用毒药';
-                        }
-                        if (actMsg) {
-                            var log = document.getElementById('event-log');
-                            var div = document.createElement('div');
-                            div.className = 'event ' + actCls;
-                            div.innerHTML = '<div>' + actMsg + '</div>';
-                            log.appendChild(div);
-                            log.scrollTop = log.scrollHeight;
-                        }
                     }
                 }
 
