@@ -182,7 +182,22 @@ def _phase_instructions(phase: str, context: dict) -> str:
 
         "VOTING": (
             f"请投票放逐一名玩家。可选目标：{valid_str}\n"
-            "注意：平票时无人被放逐。\n"
+            "注意：平票时将进入PK发言环节，平票玩家各发言一轮后重新投票。\n"
+            "输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你投票给谁，为什么", "action": {"type": "vote", "target": <目标玩家编号>}}'
+        ),
+
+        "PK_DISCUSSION": (
+            f"你（{context.get('speaker_id')}号）在PK台上！请为自己辩护。\n"
+            f"PK台玩家：{'、'.join(str(p) for p in context.get('pk_candidates', []))}号。\n"
+            "请说明为什么你不应该被放逐，或指出其他PK台玩家的可疑之处。\n"
+            "输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你的内心推理", "speech": "你的PK发言"}'
+        ),
+
+        "PK_VOTING": (
+            f"PK投票阶段。请从PK台玩家中选择一人放逐。可选目标：{valid_str}\n"
+            "注意：PK台上的玩家没有投票权，仅其他玩家投票。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你投票给谁，为什么", "action": {"type": "vote", "target": <目标玩家编号>}}'
         ),

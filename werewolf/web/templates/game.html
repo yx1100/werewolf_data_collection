@@ -468,7 +468,8 @@
                 // Phase change marker
                 var phaseLabel = {NIGHT:'🌙 夜晚阶段', DAY_ANNOUNCE:'☀️ 天亮',
                     DAY_DISCUSSION:'📢 顺序发言', DAY_FREE_DISCUSSION:'💬 自由讨论',
-                    VOTING:'🗳️ 投票阶段', DAY_RESULT:'📋 放逐结果', GAME_OVER:'🏆 游戏结束'};
+                    VOTING:'🗳️ 投票阶段', PK_DISCUSSION:'🎤 PK发言', PK_VOTING:'🗳️ PK投票',
+                    DAY_RESULT:'📋 放逐结果', GAME_OVER:'🏆 游戏结束'};
                 addEvent({type: 'phase_change',
                     phase: (phaseLabel[p.phase] || p.phase),
                     round: p.round, message: ''});
@@ -524,6 +525,31 @@
                               message: eliminated ? (eliminated + '号玩家被投票放逐。') : '投票平票，无人被放逐。',
                               eliminated: eliminated, votes: voteEvents,
                               tally: result.vote_count || {}});
+                }
+
+                // PK_DISCUSSION: render PK speeches
+                if (p.phase === 'PK_DISCUSSION') {
+                    var pkSpeeches = p.speeches || [];
+                    for (var j = 0; j < pkSpeeches.length; j++) {
+                        var s = pkSpeeches[j];
+                        addEvent({type: 'speech', player_id: s.player_id,
+                                  speech: s.speech, thought: s.thought || '',
+                                  phase: 'pk_discussion'});
+                    }
+                }
+
+                // PK_VOTING: render PK re-vote result
+                if (p.phase === 'PK_VOTING') {
+                    var pkResult = p.result || {};
+                    var pkVoteEvents = [];
+                    (p.votes || []).forEach(function(v) {
+                        pkVoteEvents.push({voter_id: v.voter_id, target: v.target});
+                    });
+                    var pkEliminated = pkResult.eliminated;
+                    addEvent({type: 'vote_result',
+                              message: pkEliminated ? (pkEliminated + '号玩家被投票放逐。') : 'PK投票再次平票，本轮无人被放逐（平安日）。',
+                              eliminated: pkEliminated, votes: pkVoteEvents,
+                              tally: pkResult.vote_count || {}});
                 }
 
                 // DAY_RESULT: thought is inline in last_words and hunter_shoot events

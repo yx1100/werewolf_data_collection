@@ -11,6 +11,8 @@ class GamePhase(Enum):
     DAY_DISCUSSION = "day_discussion"
     DAY_FREE_DISCUSSION = "day_free_discussion"
     VOTING = "voting"
+    PK_DISCUSSION = "pk_discussion"
+    PK_VOTING = "pk_voting"
     DAY_RESULT = "day_result"
     GAME_OVER = "game_over"
 
@@ -44,6 +46,7 @@ class GameState:
     witch_has_poison: bool = True
     # Voting
     votes: dict[int, int] = field(default_factory=dict)  # voter_id → target_id
+    pk_candidates: list[int] = field(default_factory=list)  # tied players for PK phase
     # History for collector
     phase_records: list[dict] = field(default_factory=list)
     # Current phase temporary data

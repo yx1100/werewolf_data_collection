@@ -105,6 +105,18 @@ class Game:
 
             elif self.state.phase == GamePhase.VOTING:
                 await self._do_phase_voting()
+                # If tie → PK phase, otherwise → DAY_RESULT
+                if self.state.pk_candidates:
+                    self.state.phase = GamePhase.PK_DISCUSSION
+                else:
+                    self.state.phase = GamePhase.DAY_RESULT
+
+            elif self.state.phase == GamePhase.PK_DISCUSSION:
+                await self._do_phase_pk_discussion()
+                self.state.phase = GamePhase.PK_VOTING
+
+            elif self.state.phase == GamePhase.PK_VOTING:
+                await self._do_phase_pk_voting()
                 self.state.phase = GamePhase.DAY_RESULT
 
             elif self.state.phase == GamePhase.DAY_RESULT:
@@ -440,6 +452,17 @@ class Game:
                     entry.setdefault("type", "speech")
                     events.append(entry)
             elif phase == "VOTING":
+                for v in record.get("votes", []):
+                    entry = dict(v)
+                    entry.pop("thought", None)
+                    events.append(entry)
+            elif phase == "PK_DISCUSSION":
+                for s in record.get("speeches", []):
+                    entry = dict(s)
+                    entry.pop("thought", None)
+                    entry.setdefault("type", "speech")
+                    events.append(entry)
+            elif phase == "PK_VOTING":
                 for v in record.get("votes", []):
                     entry = dict(v)
                     entry.pop("thought", None)
@@ -782,10 +805,150 @@ class Game:
         for target in votes.values():
             tally[target] = tally.get(target, 0) + 1
 
-        # Find max — if tie, no elimination
+        # Find max — if tie, trigger PK phase
         max_votes = max(tally.values()) if tally else 0
         top_candidates = [p for p, c in tally.items() if c == max_votes]
 
+        eliminated = top_candidates[0] if len(top_candidates) == 1 else None
+        is_tie = len(top_candidates) > 1
+
+        # Store PK candidates for potential tie-breaking
+        self.state.pk_candidates = top_candidates if is_tie else []
+
+        self.state.current_events = [{
+            "type": "vote_result",
+            "eliminated": eliminated,
+            "vote_count": {str(k): v for k, v in tally.items()},
+            "tie": is_tie,
+        }]
+
+        if eliminated is not None:
+            self.state.push_event({
+                "type": "vote_result",
+                "message": f"{eliminated}号玩家（{_ROLE_ZH.get(self.state.players[eliminated].role, '?')}）被投票放逐。",
+                "eliminated": eliminated,
+                "votes": vote_entries,
+                "tally": {str(k): v for k, v in tally.items()},
+            })
+        else:
+            pk_names = "、".join(str(p) for p in top_candidates)
+            self.state.push_event({
+                "type": "vote_result",
+                "message": f"投票平票（{pk_names}号），进入PK发言环节。",
+                "tie": True,
+                "votes": vote_entries,
+                "tally": {str(k): v for k, v in tally.items()},
+            })
+
+        record = {
+            "phase": "VOTING",
+            "round": self.state.round,
+            "votes": vote_entries,
+            "result": {
+                "eliminated": eliminated,
+                "vote_count": {str(k): v for k, v in tally.items()},
+                "tie": is_tie,
+            },
+        }
+        self.state.phase_records.append(record)
+
+    # ── PK (Tie-Breaking) Phases ──────────────────────────────────
+
+    async def _do_phase_pk_discussion(self):
+        """PK discussion: each tied player speaks once to defend themselves."""
+        pk = self.state.pk_candidates
+        pk_names = "、".join(str(p) for p in pk)
+        self.state.push_event({
+            "type": "phase_change",
+            "phase": "PK发言阶段",
+            "message": f"🎤 平票！{pk_names}号进入PK台，各发言一轮为自己辩护。",
+        })
+
+        speeches = []
+        speech_count = 0
+        for player_id in sorted(pk):
+            await self._check_pause_and_stop()
+            agent = self.agents[player_id]
+            context = {
+                "phase": "PK_DISCUSSION",
+                "round": self.state.round,
+                "alive_players": self.state.alive_players,
+                "pk_candidates": pk,
+                "public_history": self._public_history(),
+                "speaker_id": player_id,
+            }
+            output = await agent.decide(context)
+            if output:
+                speech_count += 1
+                speeches.append({
+                    "player_id": player_id,
+                    "turn": speech_count,
+                    "thought": output.thought or "",
+                    "speech": output.speech or "",
+                })
+                self.state.push_event({
+                    "type": "speech",
+                    "player_id": player_id,
+                    "speech": output.speech or "",
+                    "thought": output.thought or "",
+                    "phase": "pk_discussion",
+                })
+
+        record = {
+            "phase": "PK_DISCUSSION",
+            "round": self.state.round,
+            "pk_candidates": list(pk),
+            "speeches": speeches,
+        }
+        self.state.phase_records.append(record)
+
+    async def _do_phase_pk_voting(self):
+        """PK re-vote: non-tied players vote only for tied candidates."""
+        pk = self.state.pk_candidates
+        pk_names = "、".join(str(p) for p in pk)
+        voters = [p for p in self.state.alive_players if p not in pk]
+        self.state.votes = {}
+        self.state.push_event({
+            "type": "phase_change",
+            "phase": "PK投票阶段",
+            "message": f"🗳️ PK投票：请从 {pk_names} 号中选择一人放逐。PK台玩家无投票权。",
+        })
+
+        votes: dict[int, int] = {}
+        vote_entries: list[dict] = []
+
+        for player_id in sorted(voters):
+            await self._check_pause_and_stop()
+            agent = self.agents[player_id]
+            context = {
+                "phase": "PK_VOTING",
+                "round": self.state.round,
+                "alive_players": self.state.alive_players,
+                "pk_candidates": pk,
+                "valid_targets": list(pk),
+                "public_history": self._public_history(),
+            }
+            output = await agent.decide(context)
+            if output and output.action:
+                target = output.action.get("target")
+                if (target is not None and isinstance(target, int)
+                        and target in pk):
+                    votes[player_id] = target
+                    vote_entries.append({
+                        "voter_id": player_id,
+                        "thought": output.thought or "",
+                        "target": target,
+                    })
+
+        self.state.votes = votes
+
+        # Tally
+        tally: dict[int, int] = {}
+        for target in votes.values():
+            tally[target] = tally.get(target, 0) + 1
+
+        max_votes = max(tally.values()) if tally else 0
+        top_candidates = [p for p, c in tally.items() if c == max_votes]
         eliminated = top_candidates[0] if len(top_candidates) == 1 else None
 
         self.state.current_events = [{
@@ -806,15 +969,19 @@ class Game:
         else:
             self.state.push_event({
                 "type": "vote_result",
-                "message": "投票平票，无人被放逐。",
+                "message": "PK投票再次平票，本轮无人被放逐（平安日）。",
                 "tie": True,
                 "votes": vote_entries,
                 "tally": {str(k): v for k, v in tally.items()},
             })
 
+        # Clear PK state
+        self.state.pk_candidates = []
+
         record = {
-            "phase": "VOTING",
+            "phase": "PK_VOTING",
             "round": self.state.round,
+            "pk_candidates": list(pk),
             "votes": vote_entries,
             "result": {
                 "eliminated": eliminated,
@@ -823,6 +990,8 @@ class Game:
             },
         }
         self.state.phase_records.append(record)
+
+    # ── Day Result ─────────────────────────────────────────────────
 
     async def _do_phase_day_result(self):
         """Process elimination result: last words, hunter shot."""
