@@ -290,6 +290,13 @@ class Game:
                 "visibility": "private",
             })
 
+            # Remind each werewolf of the kill decision (prevents "空刀" hallucination)
+            if self.state.werewolf_kill_target is not None:
+                for wolf_id in werewolf_ids:
+                    self.agents[wolf_id].add_private_info(
+                        f"今晚狼人投票结果：决定击杀{self.state.werewolf_kill_target}"
+                        f"号玩家（{kill_votes[self.state.werewolf_kill_target]}票）。")
+
     async def _seer_night_action(self, seer_id: int):
         """Seer checks one player's identity."""
         agent = self.agents[seer_id]
@@ -544,6 +551,20 @@ class Game:
                 for w in self.state.get_alive_werewolves():
                     self.agents[w].add_private_info(
                         f"你的狼队友{pid}号已死亡。")
+
+        # Notify werewolves of kill result (prevent "空刀" hallucination)
+        alive_wolves = self.state.get_alive_werewolves()
+        if kill_target is not None and alive_wolves:
+            saved = (self.state.witch_antidote_target == kill_target
+                     and self.state.witch_antidote_used)
+            if saved:
+                for w in alive_wolves:
+                    self.agents[w].add_private_info(
+                        f"你们击杀的{kill_target}号玩家被女巫救活了（平安夜）。")
+            elif any(d["player_id"] == kill_target for d in deaths):
+                for w in alive_wolves:
+                    self.agents[w].add_private_info(
+                        f"你们成功击杀了{kill_target}号玩家。")
 
         # Store deaths for announcement
         self.state.current_events = deaths
