@@ -73,13 +73,11 @@ def build_user_message(context: dict) -> str:
     parts = []
     parts.append(f"当前存活玩家：{alive_str}。")
 
-    # Role reminder for werewolves during day phases
+    # Role identity anchor — factual only, no behavioural guidance
     player_role = context.get("player_role", "")
-    day_phases = {"DAY_DISCUSSION", "DAY_FREE_DISCUSSION", "VOTING",
-                  "PK_DISCUSSION", "PK_VOTING", "LAST_WORDS"}
-    if player_role == "werewolf" and phase in day_phases:
-        parts.append("[注意] 你是狼人。请在发言和投票中伪装成好人，保护你的狼队友，"
-                     "避免暴露身份或信息优势。")
+    reminder = _role_reminder(player_role, phase, context)
+    if reminder:
+        parts.append(reminder)
 
     # Grounding for first night: no public events have occurred yet
     discussion = context.get("discussion_so_far", [])
@@ -132,6 +130,53 @@ def _witch_potion_status(context: dict) -> str:
     else:
         parts.append("还有毒药。")
     return "".join(parts) + "\n"
+
+
+_DAY_PHASES = frozenset({
+    "DAY_DISCUSSION", "DAY_FREE_DISCUSSION", "VOTING",
+    "PK_DISCUSSION", "PK_VOTING", "LAST_WORDS",
+})
+
+
+def _role_reminder(role: str, phase: str, context: dict) -> str:
+    """Build a factual role identity reminder — no behavioural guidance.
+
+    States only what the player IS (role, team, abilities, known info),
+    never HOW to play.  This anchors the LLM to its true identity across
+    multi-turn history, preventing self-persuasion into a fake role.
+    """
+    is_day = phase in _DAY_PHASES
+
+    if role == "werewolf":
+        return "[身份提示] 你是狼人，属于狼人阵营。"
+
+    if role == "villager":
+        if is_day:
+            return "[身份提示] 你是平民，属于好人阵营，没有特殊技能。"
+        else:
+            return "[身份提示] 你是平民，属于好人阵营，没有特殊技能。今晚你没有夜间行动。"
+
+    if role == "seer":
+        if is_day:
+            return ("[身份提示] 你是预言家，属于好人阵营。"
+                    "你查验过的玩家结果记录在上方【你已知的信息】中。")
+        else:
+            return "[身份提示] 你是预言家，属于好人阵营。"
+
+    if role == "witch":
+        potion = _witch_potion_status(context).rstrip("\n")
+        return f"[身份提示] 你是女巫，属于好人阵营。{potion}"
+
+    if role == "hunter":
+        if is_day:
+            return ("[身份提示] 你是猎人，属于好人阵营。"
+                    "被放逐或夜间被杀时可以开枪带走一名玩家"
+                    "（被女巫毒杀则无法开枪）。")
+        else:
+            return ("[身份提示] 你是猎人，属于好人阵营。"
+                    "今晚你没有夜间行动。")
+
+    return ""
 
 
 def _phase_instructions(phase: str, context: dict) -> str:
