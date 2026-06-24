@@ -330,7 +330,7 @@ def main():
     parser.add_argument(
         "--reasoning-effort", default=None,
         choices=["high", "max"],
-        help="Override reasoning effort for DeepSeek (high/max, only with --thinking)")
+        help="Override reasoning effort for DeepSeek (high/max, only with --thinking; MiMo 不支持此参数)")
     parser.add_argument(
         "--cli", action="store_true",
         help="Run a single game in CLI mode instead of starting web server")

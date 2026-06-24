@@ -40,8 +40,9 @@ class LLMClient(ABC):
             "max_tokens": self.config.get("max_tokens", 2048),
         }
 
-        # Temperature is not supported in deep thinking mode for DeepSeek
-        if not (self.deep_thinking and self.get_provider_name() == "deepseek"):
+        # Temperature is not supported in deep thinking mode for
+        # DeepSeek and MiMo (v2.5-pro / v2.5)
+        if not (self.deep_thinking and self.get_provider_name() in ("deepseek", "mimo")):
             kwargs["temperature"] = self.config.get("temperature", 1.0)
 
         if response_format:
@@ -157,11 +158,13 @@ class MiMoClient(LLMClient):
     is sent alongside the Bearer token that the OpenAI SDK emits
     automatically — both are accepted by the MiMo gateway.
 
-    Deep thinking: MiMo supports reasoning (``reasoning_content`` in the
-    response).  How to toggle it depends on the exact model version; for
-    now deep thinking parameters are left to the defaults emitted by the
-    OpenAI SDK.  If ``reasoning_effort`` is configured it will be passed
-    as a top-level parameter (MiMo follows the OpenAI reasoning API).
+    Deep thinking: controlled via ``thinking: {type: "enabled"/"disabled"}``
+    in ``extra_body``.  This is a MiMo-specific extension, NOT a standard
+    OpenAI parameter.
+
+    Default thinking is ON for mimo-v2.5-pro and mimo-v2.5, so when
+    deep_thinking is False we explicitly send ``"disabled"`` to turn it off.
+    Temperature / top_p are NOT supported when thinking is enabled.
     """
 
     def __init__(self, config: dict, deep_thinking: bool = False,
@@ -180,16 +183,16 @@ class MiMoClient(LLMClient):
     def _client(self) -> AsyncOpenAI:
         return self._async_client
 
-    def _build_thinking_top_level(self) -> dict:
-        """MiMo: reasoning_effort as top-level param (OpenAI reasoning API)."""
-        if self.deep_thinking:
-            return {"reasoning_effort": self.config.get(
-                "reasoning_effort", "high")}
-        return {}
-
     def _build_thinking_extra_body(self) -> dict:
-        """MiMo: no extra_body thinking params needed."""
-        return {}
+        """MiMo: thinking type control via extra_body.
+
+        MiMo v2.5-pro / v2.5 default to thinking ON, so we always send
+        the parameter explicitly to match the requested state.
+        """
+        if self.deep_thinking:
+            return {"thinking": {"type": "enabled"}}
+        else:
+            return {"thinking": {"type": "disabled"}}
 
 
 def create_llm_client(provider: str, config: dict,

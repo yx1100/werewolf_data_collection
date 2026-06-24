@@ -148,7 +148,7 @@
             var provider = document.getElementById('api_provider').value;
             var thinking = document.getElementById('deep_thinking').checked;
             var group = document.getElementById('reasoning-effort-group');
-            group.style.display = ((provider === 'deepseek' || provider === 'mimo') && thinking) ? '' : 'none';
+            group.style.display = (provider === 'deepseek' && thinking) ? '' : 'none';
         }
         document.getElementById('api_provider').addEventListener('change', function() {
             updateModelOptions();
