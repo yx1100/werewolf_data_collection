@@ -41,6 +41,7 @@ def check_env(provider: str):
     key_vars = {
         "qwen": "QWEN_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY",
+        "mimo": "MIMO_API_KEY",
     }
     var_name = key_vars.get(provider, "")
     if var_name and not os.environ.get(var_name):
@@ -56,6 +57,7 @@ def print_banner(provider: str, thinking: bool):
     provider_names = {
         "qwen": "Qwen (通义千问)",
         "deepseek": "DeepSeek",
+        "mimo": "MiMo (小米)",
     }
 
     print("=" * 60)
@@ -68,6 +70,7 @@ def print_banner(provider: str, thinking: bool):
     print("  环境变量:")
     print(f"    QWEN_API_KEY     = {'✅ 已设置' if os.environ.get('QWEN_API_KEY') else '❌ 未设置'}")
     print(f"    DEEPSEEK_API_KEY  = {'✅ 已设置' if os.environ.get('DEEPSEEK_API_KEY') else '❌ 未设置'}")
+    print(f"    MIMO_API_KEY      = {'✅ 已设置' if os.environ.get('MIMO_API_KEY') else '❌ 未设置'}")
     print()
 
 
@@ -313,8 +316,8 @@ def main():
         """,
     )
     parser.add_argument(
-        "--provider", default="deepseek", choices=["qwen", "deepseek"],
-        help="API provider (default: qwen)")
+        "--provider", default="deepseek", choices=["qwen", "deepseek", "mimo"],
+        help="API provider (default: deepseek)")
     parser.add_argument(
         "--thinking", action="store_true",
         help="Enable deep thinking / chain-of-thought mode")

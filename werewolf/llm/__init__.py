@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 VALID_MODELS: dict[str, list[str]] = {
     "deepseek": ["deepseek-v4-flash", "deepseek-v4-pro"],
     "qwen": ["qwen3.6-flash", "qwen3.7-plus", "qwen3.7-max"],
+    "mimo": ["mimo-v2.5-pro", "mimo-v2.5"],
 }
 
 
@@ -148,6 +149,49 @@ class DeepSeekClient(LLMClient):
         return {}
 
 
+class MiMoClient(LLMClient):
+    """MiMo (小米) API client via OpenAI-compatible endpoint.
+
+    MiMo uses the ``api-key`` HTTP header for authentication (not the
+    standard Bearer token).  We pass it through ``default_headers`` so it
+    is sent alongside the Bearer token that the OpenAI SDK emits
+    automatically — both are accepted by the MiMo gateway.
+
+    Deep thinking: MiMo supports reasoning (``reasoning_content`` in the
+    response).  How to toggle it depends on the exact model version; for
+    now deep thinking parameters are left to the defaults emitted by the
+    OpenAI SDK.  If ``reasoning_effort`` is configured it will be passed
+    as a top-level parameter (MiMo follows the OpenAI reasoning API).
+    """
+
+    def __init__(self, config: dict, deep_thinking: bool = False,
+                 thinking_budget: int = 0, preserve_thinking: bool = False):
+        super().__init__(config, deep_thinking, thinking_budget, preserve_thinking)
+        self._async_client = AsyncOpenAI(
+            api_key=config["api_key"],
+            base_url=config.get("base_url",
+                                "https://api.xiaomimimo.com/v1"),
+            default_headers={"api-key": config["api_key"]},
+        )
+
+    def get_provider_name(self) -> str:
+        return "mimo"
+
+    def _client(self) -> AsyncOpenAI:
+        return self._async_client
+
+    def _build_thinking_top_level(self) -> dict:
+        """MiMo: reasoning_effort as top-level param (OpenAI reasoning API)."""
+        if self.deep_thinking:
+            return {"reasoning_effort": self.config.get(
+                "reasoning_effort", "high")}
+        return {}
+
+    def _build_thinking_extra_body(self) -> dict:
+        """MiMo: no extra_body thinking params needed."""
+        return {}
+
+
 def create_llm_client(provider: str, config: dict,
                       deep_thinking: bool = False,
                       thinking_budget: int = 0,
@@ -155,7 +199,7 @@ def create_llm_client(provider: str, config: dict,
     """Factory: create an LLM client by provider name.
 
     Args:
-        provider: "qwen" or "deepseek"
+        provider: "qwen", "deepseek", or "mimo"
         config: provider-specific config dict (api_key, model, base_url, etc.)
         deep_thinking: enable chain-of-thought reasoning before response
         thinking_budget: max reasoning tokens (0 = unlimited, Qwen only)
@@ -164,6 +208,7 @@ def create_llm_client(provider: str, config: dict,
     providers = {
         "qwen": QwenClient,
         "deepseek": DeepSeekClient,
+        "mimo": MiMoClient,
     }
     if provider not in providers:
         raise ValueError(

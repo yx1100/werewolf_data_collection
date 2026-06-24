@@ -25,3 +25,18 @@ deepseek:
   max_tokens: 2048
   temperature: 1.0
   reasoning_effort: "high"  # "high" or "max" for deep thinking mode
+
+# MiMo API Configuration
+# See: https://mimo.mi.com/docs/zh-CN/quick-start/summary/first-api-call
+#
+# MiMo 使用 api-key header 认证（非标准 Bearer token），SDK 已自动处理。
+# 深度思考: reasoning_effort="high" 或 "max"（OpenAI reasoning API 兼容）
+# 支持思考的模型: mimo-v2.5-pro, mimo-v2.5
+
+mimo:
+  base_url: "https://api.xiaomimimo.com/v1"
+  api_key: "${MIMO_API_KEY}"
+  model: "mimo-v2.5-pro"  # 可在 Web UI 中自定义模型名; 可选: mimo-v2.5-pro, mimo-v2.5
+  max_tokens: 2048
+  temperature: 1.0
+  reasoning_effort: "high"  # "high" or "max" for deep thinking mode

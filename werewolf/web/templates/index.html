@@ -60,6 +60,7 @@
                         <select name="api_provider" id="api_provider">
                             <option value="deepseek">DeepSeek</option>
                             <option value="qwen">Qwen (通义千问)</option>
+                            <option value="mimo">MiMo (小米)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -120,6 +121,10 @@
                 {value: 'qwen3.6-flash', label: 'Qwen3.6 Flash'},
                 {value: 'qwen3.7-plus', label: 'Qwen3.7 Plus'},
                 {value: 'qwen3.7-max', label: 'Qwen3.7 Max'}
+            ],
+            mimo: [
+                {value: 'mimo-v2.5-pro', label: 'MiMo V2.5 Pro'},
+                {value: 'mimo-v2.5', label: 'MiMo V2.5'}
             ]
         };
         function updateModelOptions() {
@@ -143,7 +148,7 @@
             var provider = document.getElementById('api_provider').value;
             var thinking = document.getElementById('deep_thinking').checked;
             var group = document.getElementById('reasoning-effort-group');
-            group.style.display = (provider === 'deepseek' && thinking) ? '' : 'none';
+            group.style.display = ((provider === 'deepseek' || provider === 'mimo') && thinking) ? '' : 'none';
         }
         document.getElementById('api_provider').addEventListener('change', function() {
             updateModelOptions();

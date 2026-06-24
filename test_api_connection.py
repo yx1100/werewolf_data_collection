@@ -16,7 +16,7 @@ from werewolf.llm import create_llm_client
 
 async def test_provider(name: str):
     """Test a single provider's connectivity and structured output."""
-    key_vars = {"qwen": "QWEN_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
+    key_vars = {"qwen": "QWEN_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "mimo": "MIMO_API_KEY"}
     var_name = key_vars[name]
     api_key = os.environ.get(var_name)
 
@@ -78,14 +78,17 @@ async def main():
 
     qwen_ok = await test_provider("qwen")
     deepseek_ok = await test_provider("deepseek")
+    mimo_ok = await test_provider("mimo")
 
     print()
-    if qwen_ok or deepseek_ok:
+    if qwen_ok or deepseek_ok or mimo_ok:
         print("✅ 至少一个 provider 可用，可以运行游戏。")
         if qwen_ok:
             print("   python run.py --provider qwen")
         if deepseek_ok:
             print("   python run.py --provider deepseek --thinking")
+        if mimo_ok:
+            print("   python run.py --provider mimo --thinking")
     else:
         print("❌ 所有 provider 都不可用。请检查：")
         print("   1. API Key 是否正确设置（环境变量或 .env 文件）")
