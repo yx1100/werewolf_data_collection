@@ -208,6 +208,9 @@ async def index(request: Request):
             for gid, game in list(active_games.items())
         ],
         "completed_games": completed,
+        "completed_count": len(completed),
+        "werewolf_wins": sum(1 for g in completed if g.get("winner") == "werewolves"),
+        "good_wins": sum(1 for g in completed if g.get("winner") == "good"),
         "personalities": personalities,
         "roles_info": roles_info,
     })
@@ -674,6 +677,9 @@ async def _run_game(game_id: str):
             "type": "game_ended",
             "game_id": game_id,
             "completed": completed_info,
+            "completed_count": len(completed_games),
+            "werewolf_wins": sum(1 for g in completed_games if g.get("winner") == "werewolves"),
+            "good_wins": sum(1 for g in completed_games if g.get("winner") == "good"),
         })
 
 

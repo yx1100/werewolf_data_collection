@@ -210,7 +210,7 @@
         </div>
 
         <div class="card">
-            <h2>📊 已完成游戏</h2>
+            <h2>📊 已完成游戏 <span style="font-weight:400;color:#8a8f98;font-size:0.8125rem;">（共 {{ completed_count }} 局 · 🐺 狼人胜 {{ werewolf_wins }} · 🛡️ 好人胜 {{ good_wins }}）</span></h2>
             <table>
                 <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>时长</th><th>结果</th><th>操作</th></tr></thead>
                 <tbody id="completed-games-body">
@@ -378,6 +378,8 @@
                     if (event.completed) {
                         insertCompletedGame(event.completed);
                     }
+                    // Update completed stats header
+                    updateCompletedStats(event.completed_count, event.werewolf_wins, event.good_wins);
                 }
             } catch (err) {
                 console.error('Lobby SSE parse error:', err);
@@ -390,6 +392,15 @@
     }
 
     document.addEventListener('DOMContentLoaded', connectLobbySSE);
+
+    // ── Update completed stats header ─────────────────────────────
+    function updateCompletedStats(count, wolfWins, goodWins) {
+        if (count === undefined || count === null) return;
+        var h2 = document.querySelector('.card:last-of-type h2');
+        if (h2) {
+            h2.innerHTML = '📊 已完成游戏 <span style="font-weight:400;color:#8a8f98;font-size:0.8125rem;">（共 ' + count + ' 局 · 🐺 狼人胜 ' + wolfWins + ' · 🛡️ 好人胜 ' + goodWins + '）</span>';
+        }
+    }
 
     // ── Delete game ────────────────────────────────────────────────
     async function deleteGame(gameId) {
