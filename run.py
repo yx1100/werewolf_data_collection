@@ -158,10 +158,14 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
 
     # Override temperature if provided
     if temperature is not None:
-        api_config["temperature"] = temperature
+        if 0 <= temperature <= 2:
+            api_config["temperature"] = temperature
+        else:
+            print(f"⚠️  警告: temperature={temperature} 超出范围 [0.0, 2.0]，"
+                  f"将使用配置文件默认值")
 
-    # Override reasoning_effort if provided
-    if reasoning_effort:
+    # Override reasoning_effort if provided (DeepSeek only)
+    if reasoning_effort and provider == "deepseek":
         api_config["reasoning_effort"] = reasoning_effort
 
     # Create LLM client
@@ -200,6 +204,7 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
         model=api_config.get("model", "unknown"),
         hyperparams={
             "temperature": api_config.get("temperature"),
+            "top_p": api_config.get("top_p"),
             "reasoning_effort": api_config.get("reasoning_effort"),
             "deep_thinking": deep_thinking,
             "thinking_budget": game_config.get("thinking_budget", 0),

@@ -255,9 +255,9 @@ async def start_game(request: Request):
         except ValueError:
             pass
 
-    # Override reasoning_effort if provided
+    # Override reasoning_effort if provided (DeepSeek only)
     reasoning_effort = form_data.get("reasoning_effort", "")
-    if reasoning_effort.strip():
+    if reasoning_effort.strip() and api_provider == "deepseek":
         api_config["reasoning_effort"] = reasoning_effort.strip()
 
     # Deep thinking settings
@@ -314,6 +314,7 @@ async def start_game(request: Request):
         model=api_config.get("model", "unknown"),
         hyperparams={
             "temperature": api_config.get("temperature"),
+            "top_p": api_config.get("top_p"),
             "reasoning_effort": api_config.get("reasoning_effort"),
             "deep_thinking": use_deep_thinking,
             "thinking_budget": thinking_budget,
