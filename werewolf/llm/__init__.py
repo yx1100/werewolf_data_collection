@@ -137,7 +137,8 @@ class QwenClient(LLMClient):
 
         # Thinking control via reasoning.effort
         kwargs["reasoning"] = (
-            {"effort": "high"} if self.deep_thinking else {"effort": "none"}
+            {"effort": self.config.get("reasoning_effort", "high")}
+            if self.deep_thinking else {"effort": "none"}
         )
 
         # Responses API does not have response_format — our phase

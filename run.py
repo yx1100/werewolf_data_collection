@@ -329,8 +329,8 @@ def main():
         help="Override temperature (0.0-2.0, default from api_config.yaml)")
     parser.add_argument(
         "--reasoning-effort", default=None,
-        choices=["high", "max"],
-        help="Override reasoning effort for DeepSeek (high/max, only with --thinking; MiMo 不支持此参数)")
+        choices=["high", "max", "medium", "low", "minimal"],
+        help="推理强度 (DeepSeek: high/max, Qwen: minimal/low/medium/high, MiMo: 不支持)")
     parser.add_argument(
         "--cli", action="store_true",
         help="Run a single game in CLI mode instead of starting web server")

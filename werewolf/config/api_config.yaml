@@ -2,7 +2,7 @@
 # See: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
 #
 # 使用 Responses API (/v1/responses)，非 Chat Completions API。
-# 深度思考: reasoning={"effort": "high"/"none"}（top-level，OpenAI 原生参数）
+# 深度思考: reasoning={"effort": "high"}（top-level），可选 minimal/low/medium/high
 # 系统指令通过 instructions 参数传递（非 messages 中的 system 角色）
 # 注意: enable_thinking / thinking_budget / preserve_thinking 已不再使用
 
@@ -12,6 +12,7 @@ qwen:
   model: "qwen3.7-plus"     # 可在 Web UI 中自定义模型名
   max_tokens: 2048
   temperature: 1.0
+  reasoning_effort: "high"  # minimal/low/medium/high，深度思考时的推理强度
 
 # DeepSeek API Configuration
 # See: https://api.deepseek.com/api-docs
