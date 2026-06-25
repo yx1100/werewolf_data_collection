@@ -32,10 +32,11 @@ deepseek:
 # 认证: api-key header + Bearer（双重，SDK 已自动处理）
 # 深度思考: reasoning={"effort": "high"/"none"}（low/medium/high 效果一致）
 # 系统指令通过 instructions 参数传递
-# 注意: Responses API 无 temperature/top_p/response_format 参数
+# 注意: temperature/top_p 在思考模式下不可自定义；结构化输出使用 text.format
 
 mimo:
   base_url: "https://api.xiaomimimo.com/v1"
   api_key: "${MIMO_API_KEY}"
   model: "mimo-v2.5-pro"  # 可在 Web UI 中自定义模型名; 可选: mimo-v2.5-pro, mimo-v2.5
   max_tokens: 2048
+  reasoning_effort: "high"  # "high"/"none"（MiMo 不支持强度区分）

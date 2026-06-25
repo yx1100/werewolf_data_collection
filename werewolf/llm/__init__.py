@@ -284,11 +284,14 @@ class MiMoClient(LLMClient):
         # Thinking control via reasoning.effort (binary on/off per MiMo docs:
         # low/medium/high all behave identically)
         kwargs["reasoning"] = (
-            {"effort": "high"} if self.deep_thinking else {"effort": "none"}
+            {"effort": self.config.get("reasoning_effort", "high")}
+            if self.deep_thinking else {"effort": "none"}
         )
 
-        # MiMo Responses API does not have temperature, top_p, or
-        # response_format — our phase prompts include JSON instructions.
+        # Structured output via text.format (MiMo Responses API equivalent
+        # of Chat Completions' response_format)
+        if response_format and response_format.get("type") == "json_object":
+            kwargs["text"] = {"format": {"type": "json_object"}}
 
         response = await self._client().responses.create(**kwargs)
         return self._normalize_response(response)
