@@ -330,7 +330,7 @@ def main():
     parser.add_argument(
         "--reasoning-effort", default=None,
         choices=["high", "max", "medium", "low", "minimal"],
-        help="推理强度 (DeepSeek: high/max, Qwen: minimal/low/medium/high, MiMo: 不支持)")
+        help="推理强度（仅 DeepSeek 支持: high/max）")
     parser.add_argument(
         "--cli", action="store_true",
         help="Run a single game in CLI mode instead of starting web server")

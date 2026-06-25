@@ -151,15 +151,8 @@
                     {value: 'high', label: '推理强度: high'},
                     {value: 'max',  label: '推理强度: max'}
                 ];
-            } else if (provider === 'qwen') {
-                options = [
-                    {value: 'high',    label: '推理强度: high'},
-                    {value: 'medium',  label: '推理强度: medium'},
-                    {value: 'low',     label: '推理强度: low'},
-                    {value: 'minimal', label: '推理强度: minimal'}
-                ];
             } else {
-                return; // MiMo: no reasoning effort
+                return; // Qwen / MiMo: 不使用 reasoning_effort
             }
             options.forEach(function(o) {
                 var opt = document.createElement('option');
@@ -172,7 +165,7 @@
             var provider = document.getElementById('api_provider').value;
             var thinking = document.getElementById('deep_thinking').checked;
             var group = document.getElementById('reasoning-effort-group');
-            if ((provider === 'deepseek' || provider === 'qwen') && thinking) {
+            if (provider === 'deepseek' && thinking) {
                 updateReasoningEffortOptions();
                 group.style.display = '';
             } else {
