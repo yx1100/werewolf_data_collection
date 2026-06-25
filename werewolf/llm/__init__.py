@@ -1,7 +1,10 @@
 """LLM client abstraction and implementations with deep thinking support."""
 
+import logging
 from abc import ABC, abstractmethod
 from openai import AsyncOpenAI
+
+logger = logging.getLogger(__name__)
 
 # Valid model names per provider.
 # Must stay in sync with the frontend dropdown in werewolf/web/templates/index.html.
@@ -45,6 +48,11 @@ class LLMClient(ABC):
         # and handle temperature independently.
         if not (self.deep_thinking and self.get_provider_name() == "deepseek"):
             kwargs["temperature"] = self.config.get("temperature", 1.0)
+            # top_p: nucleus sampling; same restriction as temperature
+            # (DeepSeek thinking mode does not support either).
+            top_p = self.config.get("top_p")
+            if top_p is not None:
+                kwargs["top_p"] = top_p
 
         if response_format:
             kwargs["response_format"] = response_format
@@ -190,11 +198,26 @@ class DeepSeekClient(LLMClient):
 
     Models: deepseek-v4-pro, deepseek-v4-flash (mixed thinking mode).
     Default thinking is ON for deepseek-v4-pro.
+
+    ``thinking_budget`` is accepted but intentionally unused — DeepSeek
+    controls total output (including thinking tokens) via ``max_tokens``.
     """
+
+    # DeepSeek V4 支持的 reasoning_effort 有效值
+    _VALID_REASONING_EFFORTS = {"high", "max"}
 
     def __init__(self, config: dict, deep_thinking: bool = False,
                  thinking_budget: int = 0, preserve_thinking: bool = False):
         super().__init__(config, deep_thinking, thinking_budget, preserve_thinking)
+
+        # 校验 reasoning_effort 值 — 无效值时回退为 "high" 并告警
+        effort = config.get("reasoning_effort", "high")
+        if effort not in self._VALID_REASONING_EFFORTS:
+            logger.warning(
+                "DeepSeek reasoning_effort '%s' 不在有效值 %s 中，已回退为 'high'",
+                effort, self._VALID_REASONING_EFFORTS)
+            config["reasoning_effort"] = "high"
+
         self._async_client = AsyncOpenAI(
             api_key=config["api_key"],
             base_url=config.get("base_url", "https://api.deepseek.com"),

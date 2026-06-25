@@ -23,6 +23,7 @@ deepseek:
   model: "deepseek-v4-flash"  # 可在 Web UI 中自定义模型名
   max_tokens: 2048
   temperature: 1.0
+  top_p: 1.0               # 核采样参数，与 temperature 配合控制生成多样性
   reasoning_effort: "high"  # "high" or "max" for deep thinking mode
 
 # MiMo API Configuration
