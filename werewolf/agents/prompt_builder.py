@@ -211,6 +211,7 @@ def _phase_instructions(phase: str, context: dict) -> str:
             "2. 白天发言分工（谁悍跳预言家、谁冲锋带节奏、谁倒钩站边好人、谁深水低调）\n"
             "3. 投票协调（绑票目标，集中投票放逐一名好人）\n"
             "speech 是你说给队友的话，禁止在 speech 中用括号插入自言自语或备注。\n"
+            "请与同伴讨论今晚要击杀的目标。\n"
             "请以 JSON 格式输出（只输出 JSON，不要有其他文字）：\n"
             '{"thought": "你的分析和建议", "speech": "你的发言（纯口头语句，无括号心理活动）", "action": {"type": "discuss"}}'
         ),
