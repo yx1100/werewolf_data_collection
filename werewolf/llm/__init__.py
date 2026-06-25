@@ -40,9 +40,10 @@ class LLMClient(ABC):
             "max_tokens": self.config.get("max_tokens", 2048),
         }
 
-        # Temperature is not supported in deep thinking mode for
-        # DeepSeek and MiMo (v2.5-pro / v2.5)
-        if not (self.deep_thinking and self.get_provider_name() in ("deepseek", "mimo")):
+        # Temperature is not supported in deep thinking mode for MiMo
+        # (v2.5-pro / v2.5).  DeepSeek supports temperature independently
+        # of thinking mode per its API docs.
+        if not (self.deep_thinking and self.get_provider_name() == "mimo"):
             kwargs["temperature"] = self.config.get("temperature", 1.0)
 
         if response_format:
@@ -113,8 +114,9 @@ class QwenClient(LLMClient):
 class DeepSeekClient(LLMClient):
     """DeepSeek API client via OpenAI-compatible endpoint.
 
-    Deep thinking: thinking: {type: "enabled"} via extra_body
-    + reasoning_effort="high" or "max" as top-level param.
+    Deep thinking: ``thinking: {type, reasoning_effort}`` via extra_body.
+    Per the DeepSeek API docs, ``reasoning_effort`` is a field *inside*
+    the ``thinking`` object (not a top-level parameter).
 
     Models: deepseek-v4-pro, deepseek-v4-flash (mixed thinking mode).
     Default thinking is ON for deepseek-v4-pro.
@@ -135,19 +137,19 @@ class DeepSeekClient(LLMClient):
         return self._async_client
 
     def _build_thinking_extra_body(self) -> dict:
-        """DeepSeek: thinking type control via extra_body."""
-        if self.deep_thinking:
-            return {"thinking": {"type": "enabled"}}
-        else:
-            # Explicitly disabled
-            return {"thinking": {"type": "disabled"}}
+        """DeepSeek: thinking type + reasoning_effort via extra_body.
 
-    def _build_thinking_top_level(self) -> dict:
-        """DeepSeek: reasoning_effort as top-level param."""
+        reasoning_effort is a field of the ``thinking`` object per the
+        DeepSeek API docs (not a top-level parameter).
+        """
+        thinking: dict[str, str] = {}
         if self.deep_thinking:
-            return {"reasoning_effort": self.config.get(
-                "reasoning_effort", "high")}
-        return {}
+            thinking["type"] = "enabled"
+            thinking["reasoning_effort"] = self.config.get(
+                "reasoning_effort", "high")
+        else:
+            thinking["type"] = "disabled"
+        return {"thinking": thinking}
 
 
 class MiMoClient(LLMClient):
