@@ -137,14 +137,15 @@ async def run_cli_game(provider: str, deep_thinking: bool, model_name: str = "",
     from pathlib import Path
     root = Path(__file__).parent
 
+    def _resolve_env(value):
+        """Resolve ${VAR} references in config values."""
+        if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+            return os.environ.get(value[2:-1], "")
+        return value
+
     with open(root / "werewolf" / "config" / "api_config.yaml", encoding="utf-8") as f:
         api_raw = yaml.safe_load(f)
-    api_config = {}
-    for k, v in api_raw.get(provider, {}).items():
-        if isinstance(v, str) and v.startswith("${") and v.endswith("}"):
-            api_config[k] = os.environ.get(v[2:-1], "")
-        else:
-            api_config[k] = v
+    api_config = {k: _resolve_env(v) for k, v in api_raw.get(provider, {}).items()}
 
     with open(root / "werewolf" / "config" / "game_config.yaml", encoding="utf-8") as f:
         game_config = yaml.safe_load(f).get("game", {})
