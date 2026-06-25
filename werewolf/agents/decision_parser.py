@@ -65,9 +65,14 @@ def parse_llm_response(response: dict) -> AgentOutput:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # Defensive sanitise: strip LLM self-annotation from speech
+    speech_val = data.get("speech", "")
+    if isinstance(speech_val, str):
+        speech_val = _sanitize_speech(speech_val)
+
     return AgentOutput(
         thought=data.get("thought", ""),
-        speech=data.get("speech", ""),
+        speech=speech_val,
         action=data.get("action", {}),
     )
 
@@ -179,3 +184,44 @@ def _extract_json(text: str) -> str | None:
         return m.group(0).strip()
 
     return None
+
+
+# ── Speech sanitisation ──────────────────────────────────────────
+
+# Patterns that indicate LLM self-annotation / inner-thought leakage
+# in speech text.  These are stripped as a safety net even when the
+# prompt already instructs the model to keep speech clean.
+_THOUGHT_LEAK_PATTERNS: list[re.Pattern] = [
+    # Full-width parentheses containing thought markers
+    # e.g. "民（其实我是猎人但我不能说）" → "民"
+    re.compile(
+        r'（[^）]*(?:在心里|其实是|其实我是|备注|注意|我不能说|'
+        r'我不能暴露|内心|心里|悄悄|偷偷|暗[中地]|实际[上是我]|'
+        r'本身是|策略|战术|此处暂不|先不|不要暴露|避免暴露)[^）]*）'
+    ),
+    # Half-width parentheses containing thought markers
+    re.compile(
+        r'\([^)]*(?:其实是|其实我是|备注|心里|内心|'
+        r'我不能说|悄悄|偷偷)[^)]*\)'
+    ),
+    # Trailing "（注：...）" or "（注意：...）" annotations
+    re.compile(r'（注[：:][^）]*）'),
+    re.compile(r'（注意[：:][^）]*）'),
+]
+
+
+def _sanitize_speech(speech: str) -> str:
+    """Strip LLM self-annotation and inner-thought leakage from speech.
+
+    As a safety net, removes parenthetical content that contains
+    markers of internal reasoning (e.g. "在心里", "其实我是", "备注").
+    This runs after prompt-based prevention to catch any remaining leaks.
+    """
+    for pat in _THOUGHT_LEAK_PATTERNS:
+        speech = pat.sub("", speech)
+    # Clean up double spaces / leading/trailing whitespace left by removals
+    speech = re.sub(r' +', ' ', speech).strip()
+    # Remove empty parentheses pairs that may remain
+    speech = re.sub(r'（\s*）', '', speech)
+    speech = re.sub(r'\(\s*\)', '', speech)
+    return speech

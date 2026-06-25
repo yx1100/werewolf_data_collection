@@ -61,6 +61,19 @@ def build_system_prompt(player_id: int, role: str, personality: dict,
     parts.append("[当前局势]")
     parts.append(f"你坐在{player_id}号位。")
 
+    # Speech / thought separation rule
+    parts.append("")
+    parts.append("[发言规则（极其重要，违反将导致游戏无效）]")
+    parts.append("你的每次输出包含 thought（内心推理）和 speech（公开发言）两个字段。")
+    parts.append("thought 是你私下的思考和策略分析，只有你自己能看到。")
+    parts.append("speech 是你在游戏桌上公开说出的话，会被所有其他玩家听到并用于判断你的身份。")
+    parts.append("绝对禁止在 speech 中包含以下内容：")
+    parts.append("- 括号内的心理活动、策略备注或自言自语（如\"我是民（其实我是猎人）\"）")
+    parts.append("- 对自己真实身份的暗示或明示（除非你主动选择亮明身份）")
+    parts.append("- 对 thought 内容的复述或引用")
+    parts.append("speech 只包含一个玩家在桌游中可以用嘴巴公开说出来的话。")
+    parts.append("内心分析和策略请全部放在 thought 字段中。")
+
     return "\n".join(parts)
 
 
@@ -197,8 +210,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
             "1. 今晚击杀目标（可协商空刀不杀人以制造平安夜混淆好人）\n"
             "2. 白天发言分工（谁悍跳预言家、谁冲锋带节奏、谁倒钩站边好人、谁深水低调）\n"
             "3. 投票协调（绑票目标，集中投票放逐一名好人）\n"
-            "请与同伴讨论今晚要击杀的目标。请以 JSON 格式输出（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的分析和建议", "speech": "你的发言", "action": {"type": "discuss"}}'
+            "speech 是你说给队友的话，禁止在 speech 中用括号插入自言自语或备注。\n"
+            "请以 JSON 格式输出（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你的分析和建议", "speech": "你的发言（纯口头语句，无括号心理活动）", "action": {"type": "discuss"}}'
         ),
 
         "NIGHT_WEREWOLF_KILL": (
@@ -236,14 +250,18 @@ def _phase_instructions(phase: str, context: dict) -> str:
 
         "DAY_DISCUSSION": (
             f"现在是第{context.get('round', 1)}天依次发言阶段。轮到你了。\n"
-            "请根据当前局势发表你的分析和怀疑。输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的公开发言"}'
+            "请根据当前局势发表你的分析和怀疑。\n"
+            "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动、策略备注或自言自语。\n"
+            "内心分析和策略放在 thought 字段中。输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你的内心推理", "speech": "你的公开发言（纯口头语句，无括号心理活动）"}'
         ),
 
         "DAY_FREE_DISCUSSION": (
             f"现在是自由讨论第{context.get('free_round', 1)}轮。轮到你了。\n"
-            "可以回应其他人的发言，提出新的分析，或质疑他人。输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的公开发言"}'
+            "可以回应其他人的发言，提出新的分析，或质疑他人。\n"
+            "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动、策略备注或自言自语。\n"
+            "内心分析和策略放在 thought 字段中。输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你的内心推理", "speech": "你的公开发言（纯口头语句，无括号心理活动）"}'
         ),
 
         "VOTING": (
@@ -257,8 +275,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
             f"你（{context.get('speaker_id')}号）在PK台上！请为自己辩护。\n"
             f"PK台玩家：{'、'.join(str(p) for p in context.get('pk_candidates', []))}号。\n"
             "请说明为什么你不应该被放逐，或指出其他PK台玩家的可疑之处。\n"
+            "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动或自言自语。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的PK发言"}'
+            '{"thought": "你的内心推理", "speech": "你的PK发言（纯口头语句，无括号心理活动）"}'
         ),
 
         "PK_VOTING": (
@@ -270,8 +289,9 @@ def _phase_instructions(phase: str, context: dict) -> str:
 
         "LAST_WORDS": (
             f"你（{context.get('eliminated_player')}号）被放逐了。\n"
-            "请发表你的遗言。输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的想法", "speech": "你的遗言"}'
+            "请发表你的遗言。speech 是你口头说出的遗言，禁止在 speech 中用括号插入心理活动。\n"
+            "输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{"thought": "你的想法", "speech": "你的遗言（纯口头语句，无括号心理活动）"}'
         ),
 
         "HUNTER_SHOOT": (
