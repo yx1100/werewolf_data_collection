@@ -82,17 +82,21 @@ class LLMClient(ABC):
 
 
 class QwenClient(LLMClient):
-    """Qwen (通义千问) API client via OpenAI-compatible endpoint.
+    """Qwen (通义千问) API client via OpenAI-compatible Responses API.
 
-    Deep thinking: enable_thinking=True passed via extra_body (NOT a standard
-    OpenAI param, must use extra_body per Qwen docs).
+    Uses the ``/v1/responses`` endpoint (not Chat Completions).
+    System prompt is passed as ``instructions``; conversation turns go
+    into ``input``.  Thinking is controlled via ``reasoning.effort``
+    (top-level, OpenAI-native) instead of ``enable_thinking`` (deprecated).
 
-    Models supporting thinking: qwen-plus, qwen-max, qwen-turbo, qwen-flash
-    (qwen3 series, mixed thinking mode).
+    Response format differs from Chat Completions — we normalise it back
+    to the Chat Completions shape so decision_parser etc. are unaffected.
     """
 
     def __init__(self, config: dict, deep_thinking: bool = False,
                  thinking_budget: int = 0, preserve_thinking: bool = False):
+        # thinking_budget / preserve_thinking accepted but not used —
+        # Responses API controls thinking differently.
         super().__init__(config, deep_thinking, thinking_budget, preserve_thinking)
         self._async_client = AsyncOpenAI(
             api_key=config["api_key"],
@@ -106,16 +110,77 @@ class QwenClient(LLMClient):
     def _client(self) -> AsyncOpenAI:
         return self._async_client
 
-    def _build_thinking_extra_body(self) -> dict:
-        """Qwen: enable_thinking must go through extra_body."""
-        if not self.deep_thinking:
-            return {}
-        body = {"enable_thinking": True}
-        if self.thinking_budget > 0:
-            body["thinking_budget"] = self.thinking_budget
-        if self.preserve_thinking:
-            body["preserve_thinking"] = True
-        return body
+    # ── chat() override — use Responses API ──────────────────────
+
+    async def chat(self, messages: list[dict],
+                   response_format: dict | None = None) -> dict:
+        """Send request via the Responses API, return Chat-Completions shape."""
+        # Separate system message → instructions; rest → input
+        instructions = None
+        input_items: list[dict] = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                instructions = content
+            else:
+                input_items.append({"role": role, "content": content})
+
+        kwargs: dict = {
+            "model": self.config.get("model", "default"),
+            "input": input_items,
+            "temperature": self.config.get("temperature", 1.0),
+            "max_output_tokens": self.config.get("max_tokens", 2048),
+        }
+        if instructions:
+            kwargs["instructions"] = instructions
+
+        # Thinking control via reasoning.effort
+        kwargs["reasoning"] = (
+            {"effort": "high"} if self.deep_thinking else {"effort": "none"}
+        )
+
+        # Responses API does not have response_format — our phase
+        # prompts already include explicit JSON-format instructions.
+
+        response = await self._client().responses.create(**kwargs)
+        return self._normalize_response(response)
+
+    @staticmethod
+    def _normalize_response(resp) -> dict:
+        """Convert Responses API output → Chat Completions shape."""
+        content = ""
+        reasoning_content = ""
+
+        for item in resp.output:
+            item_type = getattr(item, "type", "")
+            if item_type == "message":
+                for block in getattr(item, "content", []):
+                    if getattr(block, "type", "") == "output_text":
+                        content = getattr(block, "text", "")
+            elif item_type == "reasoning":
+                for block in getattr(item, "summary", []):
+                    if getattr(block, "type", "") == "summary_text":
+                        reasoning_content = getattr(block, "text", "")
+
+        usage = getattr(resp, "usage", None)
+        return {
+            "id": getattr(resp, "id", ""),
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning_content": reasoning_content,
+                },
+                "finish_reason": "stop",
+            }],
+            "usage": {
+                "prompt_tokens": getattr(usage, "input_tokens", 0) if usage else 0,
+                "completion_tokens": getattr(usage, "output_tokens", 0) if usage else 0,
+                "total_tokens": getattr(usage, "total_tokens", 0) if usage else 0,
+            } if usage else {},
+        }
 
 
 class DeepSeekClient(LLMClient):
