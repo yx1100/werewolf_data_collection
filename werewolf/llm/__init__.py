@@ -37,7 +37,7 @@ class LLMClient(ABC):
         kwargs = {
             "model": self.config.get("model", "default"),
             "messages": messages,
-            "max_tokens": self.config.get("max_tokens", 2048),
+            self._completion_tokens_key(): self.config.get("max_tokens", 2048),
         }
 
         # Temperature is not supported in deep thinking mode for
@@ -67,6 +67,14 @@ class LLMClient(ABC):
     def _build_thinking_top_level(self) -> dict:
         """Build top-level thinking params. Override per provider."""
         return {}
+
+    def _completion_tokens_key(self) -> str:
+        """Parameter name for max completion tokens.
+
+        Most OpenAI-compatible APIs accept ``max_tokens``, but some
+        (e.g. MiMo) require the newer ``max_completion_tokens``.
+        """
+        return "max_tokens"
 
     @abstractmethod
     def _client(self) -> AsyncOpenAI:
@@ -186,6 +194,10 @@ class MiMoClient(LLMClient):
 
     def _client(self) -> AsyncOpenAI:
         return self._async_client
+
+    def _completion_tokens_key(self) -> str:
+        """MiMo uses max_completion_tokens (not max_tokens)."""
+        return "max_completion_tokens"
 
     def _build_thinking_extra_body(self) -> dict:
         """MiMo: thinking type control via extra_body.
