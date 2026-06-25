@@ -3,7 +3,7 @@
 #
 # 使用 Responses API (/v1/responses)，非 Chat Completions API。
 # 深度思考: reasoning={"effort": "high"}（top-level），可选 minimal/low/medium/high
-# 系统指令通过 instructions 参数传递（非 messages 中的 system 角色）
+# 系统指令通过 input 中的 {"role": "system"} 传递（非 instructions 参数）
 # 注意: enable_thinking / thinking_budget / preserve_thinking 已不再使用
 
 qwen:

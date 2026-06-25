@@ -85,8 +85,8 @@ class QwenClient(LLMClient):
     """Qwen (通义千问) API client via OpenAI-compatible Responses API.
 
     Uses the ``/v1/responses`` endpoint (not Chat Completions).
-    System prompt is passed as ``instructions``; conversation turns go
-    into ``input``.  Thinking is controlled via ``reasoning.effort``
+    System prompt is passed via ``input`` as ``{"role":"system"}`` per
+    Qwen docs.  Thinking is controlled via ``reasoning.effort``
     (top-level, OpenAI-native) instead of ``enable_thinking`` (deprecated).
 
     Response format differs from Chat Completions — we normalise it back
@@ -115,16 +115,13 @@ class QwenClient(LLMClient):
     async def chat(self, messages: list[dict],
                    response_format: dict | None = None) -> dict:
         """Send request via the Responses API, return Chat-Completions shape."""
-        # Separate system message → instructions; rest → input
-        instructions = None
+        # Qwen docs recommend putting system prompt in input as
+        # {"role":"system"} rather than using the instructions param.
         input_items: list[dict] = []
         for m in messages:
             role = m.get("role", "user")
             content = m.get("content", "")
-            if role == "system":
-                instructions = content
-            else:
-                input_items.append({"role": role, "content": content})
+            input_items.append({"role": role, "content": content})
 
         kwargs: dict = {
             "model": self.config.get("model", "default"),
@@ -132,8 +129,6 @@ class QwenClient(LLMClient):
             "temperature": self.config.get("temperature", 1.0),
             "max_output_tokens": self.config.get("max_tokens", 2048),
         }
-        if instructions:
-            kwargs["instructions"] = instructions
 
         # Thinking control via reasoning.effort
         kwargs["reasoning"] = (
