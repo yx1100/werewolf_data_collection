@@ -41,8 +41,9 @@ class LLMClient(ABC):
         }
 
         # Temperature is not supported in deep thinking mode for
-        # DeepSeek and MiMo (per their respective API docs).
-        if not (self.deep_thinking and self.get_provider_name() in ("deepseek", "mimo")):
+        # DeepSeek (per its API docs).  Qwen / MiMo override chat()
+        # and handle temperature independently.
+        if not (self.deep_thinking and self.get_provider_name() == "deepseek"):
             kwargs["temperature"] = self.config.get("temperature", 1.0)
 
         if response_format:
@@ -224,20 +225,20 @@ class DeepSeekClient(LLMClient):
 
 
 class MiMoClient(LLMClient):
-    """MiMo (小米) API client via OpenAI-compatible endpoint.
+    """MiMo (小米) API client via OpenAI-compatible Responses API.
 
-    MiMo uses the ``api-key`` HTTP header for authentication (not the
-    standard Bearer token).  We pass it through ``default_headers`` so it
-    is sent alongside the Bearer token that the OpenAI SDK emits
-    automatically — both are accepted by the MiMo gateway.
+    Uses the ``/v1/responses`` endpoint (not Chat Completions).
+    System prompt is passed via ``instructions``; conversation turns go
+    into ``input``.  Thinking is controlled via ``reasoning.effort``
+    instead of ``thinking: {type}`` (Chat Completions legacy).
 
-    Deep thinking: controlled via ``thinking: {type: "enabled"/"disabled"}``
-    in ``extra_body``.  This is a MiMo-specific extension, NOT a standard
-    OpenAI parameter.
+    Per MiMo docs, ``reasoning.effort`` values ``low``/``medium``/``high``
+    all behave identically (no intensity differentiation), so the toggle
+    is effectively binary: ``none`` = off, any other = on.
 
-    Default thinking is ON for mimo-v2.5-pro and mimo-v2.5, so when
-    deep_thinking is False we explicitly send ``"disabled"`` to turn it off.
-    Temperature / top_p are NOT supported when thinking is enabled.
+    MiMo Responses API does not document ``temperature``, ``top_p``, or
+    ``response_format`` — we omit them and rely on prompt instructions
+    for JSON output.
     """
 
     def __init__(self, config: dict, deep_thinking: bool = False,
@@ -256,20 +257,81 @@ class MiMoClient(LLMClient):
     def _client(self) -> AsyncOpenAI:
         return self._async_client
 
-    def _completion_tokens_key(self) -> str:
-        """MiMo uses max_completion_tokens (not max_tokens)."""
-        return "max_completion_tokens"
+    # ── chat() override — use Responses API ──────────────────────
 
-    def _build_thinking_extra_body(self) -> dict:
-        """MiMo: thinking type control via extra_body.
+    async def chat(self, messages: list[dict],
+                   response_format: dict | None = None) -> dict:
+        """Send request via the Responses API, return Chat-Completions shape."""
+        # Separate system message → instructions; rest → input
+        instructions = None
+        input_items: list[dict] = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                instructions = content
+            else:
+                input_items.append({"role": role, "content": content})
 
-        MiMo v2.5-pro / v2.5 default to thinking ON, so we always send
-        the parameter explicitly to match the requested state.
-        """
-        if self.deep_thinking:
-            return {"thinking": {"type": "enabled"}}
-        else:
-            return {"thinking": {"type": "disabled"}}
+        kwargs: dict = {
+            "model": self.config.get("model", "default"),
+            "input": input_items,
+            "max_output_tokens": self.config.get("max_tokens", 2048),
+        }
+        if instructions:
+            kwargs["instructions"] = instructions
+
+        # Thinking control via reasoning.effort (binary on/off per MiMo docs:
+        # low/medium/high all behave identically)
+        kwargs["reasoning"] = (
+            {"effort": "high"} if self.deep_thinking else {"effort": "none"}
+        )
+
+        # MiMo Responses API does not have temperature, top_p, or
+        # response_format — our phase prompts include JSON instructions.
+
+        response = await self._client().responses.create(**kwargs)
+        return self._normalize_response(response)
+
+    @staticmethod
+    def _normalize_response(resp) -> dict:
+        """Convert Responses API output → Chat Completions shape."""
+        content = ""
+        reasoning_content = ""
+
+        for item in resp.output:
+            item_type = getattr(item, "type", "")
+            if item_type == "message":
+                for block in getattr(item, "content", []):
+                    if getattr(block, "type", "") == "output_text":
+                        content = getattr(block, "text", "")
+            elif item_type == "reasoning":
+                for block in getattr(item, "summary", []):
+                    if getattr(block, "type", "") == "summary_text":
+                        reasoning_content = getattr(block, "text", "")
+
+        # Fallback: use output_text shortcut if available
+        if not content:
+            content = getattr(resp, "output_text", "")
+
+        usage = getattr(resp, "usage", None)
+        return {
+            "id": getattr(resp, "id", ""),
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning_content": reasoning_content,
+                },
+                "finish_reason": "stop",
+            }],
+            "usage": {
+                "prompt_tokens": getattr(usage, "input_tokens", 0) if usage else 0,
+                "completion_tokens": getattr(usage, "output_tokens", 0) if usage else 0,
+                "total_tokens": getattr(usage, "total_tokens", 0) if usage else 0,
+            } if usage else {},
+        }
 
 
 def create_llm_client(provider: str, config: dict,
