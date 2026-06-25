@@ -385,6 +385,12 @@
         // SSE connection (live game only)
         if (!IS_REPLAY) {
             const evtSource = new EventSource('/game/' + gameId + '/stream');
+            evtSource.onopen = function() {
+                var st = document.getElementById('status');
+                if (st && st.innerHTML === '连接中断，尝试重连...') {
+                    st.innerHTML = '游戏进行中...';
+                }
+            };
             evtSource.onmessage = function(e) {
                 try {
                     const event = JSON.parse(e.data);

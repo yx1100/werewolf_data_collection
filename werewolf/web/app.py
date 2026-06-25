@@ -337,7 +337,7 @@ async def start_game(request: Request):
     # Register game
     async with _active_games_lock:
         active_games[game_id] = game
-    game_event_queues[game_id] = []
+        game_event_queues[game_id] = []
 
     # Store player assignments for UI
     game._player_assignments = player_assignments
@@ -481,7 +481,7 @@ async def lobby_stream() -> StreamingResponse:
     """SSE endpoint for real-time lobby updates (active game list)."""
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        my_queue: asyncio.Queue = asyncio.Queue()
+        my_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
         async with _lobby_queues_lock:
             _lobby_queues.add(my_queue)
 
@@ -683,10 +683,6 @@ async def _run_game(game_id: str):
             "good_wins": sum(1 for g in completed_games if g.get("winner") == "good"),
         })
 
-
-async def _queue_put(queue: asyncio.Queue, event: dict):
-    """Put an event on the queue."""
-    await queue.put(event)
 
 
 async def _empty_stream():

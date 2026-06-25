@@ -232,7 +232,7 @@
         </div>
 
         <div class="card">
-            <h2>📊 已完成游戏 <span style="font-weight:400;color:#8a8f98;font-size:0.8125rem;">（共 {{ completed_count }} 局 · 🐺 狼人胜 {{ werewolf_wins }} · 🛡️ 好人胜 {{ good_wins }}）</span></h2>
+            <h2 id="completed-stats-header">📊 已完成游戏 <span style="font-weight:400;color:#8a8f98;font-size:0.8125rem;">（共 {{ completed_count }} 局 · 🐺 狼人胜 {{ werewolf_wins }} · 🛡️ 好人胜 {{ good_wins }}）</span></h2>
             <table>
                 <thead><tr><th>游戏 ID</th><th>时间</th><th>API</th><th>轮数</th><th>时长</th><th>结果</th><th>操作</th></tr></thead>
                 <tbody id="completed-games-body">
@@ -339,7 +339,7 @@
             '<td>' + (g.display_time || '') + '</td>' +
             '<td>' + (g.api_provider || '') + '</td>' +
             '<td>' + g.rounds + ' 轮</td>' +
-            '<td>' + (g.duration_display || '') + '</td>' +
+            '<td>' + (g.duration_display || 'NULL') + '</td>' +
             '<td class="' + winnerCls + '">' + winnerLabel + '</td>' +
             '<td><a href="/game/' + g.game_id + '/replay" class="btn btn-sm" style="background:#141516;color:#d0d6e0;border:1px solid #23252a;">回顾</a> ' +
             '<button class="btn btn-sm btn-danger" onclick="deleteGame(\'' + g.game_id + '\')">删除</button></td>';
@@ -418,7 +418,7 @@
     // ── Update completed stats header ─────────────────────────────
     function updateCompletedStats(count, wolfWins, goodWins) {
         if (count === undefined || count === null) return;
-        var h2 = document.querySelector('.card:last-of-type h2');
+        var h2 = document.getElementById('completed-stats-header');
         if (h2) {
             h2.innerHTML = '📊 已完成游戏 <span style="font-weight:400;color:#8a8f98;font-size:0.8125rem;">（共 ' + count + ' 局 · 🐺 狼人胜 ' + wolfWins + ' · 🛡️ 好人胜 ' + goodWins + '）</span>';
         }
