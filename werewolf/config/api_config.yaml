@@ -27,17 +27,19 @@ deepseek:
   reasoning_effort: "high"  # "high" or "max" for deep thinking mode
 
 # MiMo API Configuration
-# See: https://mimo.mi.com/docs/zh-CN/api/chat/responses
+# See: https://mimo.mi.com/docs/zh-CN/api/chat/openai-api
 #
-# 使用 Responses API (/v1/responses)，非 Chat Completions API。
+# 使用 Chat Completions API (/v1/chat/completions)，非 Responses API。
 # 认证: api-key header + Bearer（双重，SDK 已自动处理）
-# 深度思考: reasoning={"effort": "high"/"none"}（low/medium/high 效果一致）
-# 系统指令通过 instructions 参数传递
-# 注意: temperature/top_p 在思考模式下不可自定义；结构化输出使用 text.format
+# 深度思考: extra_body={"thinking": {"type": "enabled"/"disabled"}}（二元开关）
+# 不支持 reasoning_effort 参数 — 思考强度不可调节。
+# 结构化输出使用标准 response_format={"type": "json_object"}。
 
 mimo:
   base_url: "https://api.xiaomimimo.com/v1"
   api_key: "${MIMO_API_KEY}"
   model: "mimo-v2.5-pro"  # 可在 Web UI 中自定义模型名; 可选: mimo-v2.5-pro, mimo-v2.5
   max_tokens: 2048
-  reasoning_effort: "high"  # "high"/"none"（MiMo 不支持强度区分）
+  temperature: 1.0
+  top_p: 0.95
+  # reasoning_effort 不再使用 — MiMo Chat Completions API 通过 thinking.type 二元开关控制
