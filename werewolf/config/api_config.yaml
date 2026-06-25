@@ -1,10 +1,15 @@
 # Qwen API Configuration
-# See: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
+# See: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions
 #
-# 使用 Responses API (/v1/responses)，非 Chat Completions API。
-# 深度思考: reasoning={"effort": "high"}（top-level），可选 minimal/low/medium/high
-# 系统指令通过 input 中的 {"role": "system"} 传递（非 instructions 参数）
-# 注意: enable_thinking / thinking_budget / preserve_thinking 已不再使用
+# 使用 Chat Completions API (/v1/chat/completions)，非 Responses API。
+# 深度思考: extra_body={"enable_thinking": True/False}（布尔开关）
+# Qwen 不使用 reasoning_effort（那是 DeepSeek 模型的参数）。
+# 思考预算: extra_body={"thinking_budget": N}（0=不限制）
+# 保留思考: extra_body={"preserve_thinking": True}（默认 False）
+# 注意: 思考模式下不支持结构化输出（response_format），代码中自动跳过。
+#
+# base_url 迁移提示: 华北2(北京) 已从 dashscope.aliyuncs.com 迁移至
+# {WorkspaceId}.cn-beijing.maas.aliyuncs.com，旧 URL 暂仍可用。
 
 qwen:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -12,7 +17,8 @@ qwen:
   model: "qwen3.7-plus"     # 可在 Web UI 中自定义模型名
   max_tokens: 2048
   temperature: 1.0
-  reasoning_effort: "high"  # minimal/low/medium/high，深度思考时的推理强度
+  top_p: 0.95
+  # reasoning_effort 不再使用 — Qwen 通过 enable_thinking 布尔开关控制
 
 # DeepSeek API Configuration
 # See: https://api.deepseek.com/api-docs
