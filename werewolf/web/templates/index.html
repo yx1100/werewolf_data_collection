@@ -124,6 +124,8 @@
                 {value: 'mimo-v2.5', label: 'MiMo V2.5'}
             ]
         };
+        // Default temperature per provider (from api_config.yaml)
+        var defaultTemperatures = { deepseek: 1.0, qwen: 1.0, mimo: 1.0 };
         function updateModelOptions() {
             var provider = document.getElementById('api_provider').value;
             var sel = document.getElementById('model_name');
@@ -134,7 +136,17 @@
                 opt.textContent = m.label;
                 sel.appendChild(opt);
             });
+            // Update temperature to provider default
+            var tempInput = document.getElementById('temperature');
+            var def = defaultTemperatures[provider];
+            if (def !== undefined && tempInput && !tempInput.dataset.userModified) {
+                tempInput.value = def;
+            }
         }
+        // Track manual temperature changes so we don't overwrite them on provider switch
+        document.getElementById('temperature').addEventListener('input', function() {
+            this.dataset.userModified = 'true';
+        });
         function setAllPersonalities(val) {
             for (var i = 1; i <= 9; i++) {
                 var s = document.getElementsByName('personality_' + i)[0];
@@ -428,8 +440,8 @@
     async function deleteGame(gameId) {
         if (!confirm('确定要删除游戏 ' + gameId + ' 的数据吗？此操作不可撤销。')) return;
         try {
-            var resp = await fetch('/game/' + gameId + '/data', { method: 'DELETE' });
-            var result = await resp.json();
+            const resp = await fetch('/game/' + gameId + '/data', { method: 'DELETE' });
+            const result = await resp.json();
             if (result.status === 'deleted') {
                 location.reload();
             } else {
