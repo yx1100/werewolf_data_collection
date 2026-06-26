@@ -16,6 +16,7 @@ class AgentOutput:
         self.speech = speech
         self.action = action or {}
         self.is_fallback_speech = False
+        self.is_garbled = False
 
 
 def parse_llm_response(response: dict) -> AgentOutput:
@@ -54,28 +55,37 @@ def parse_llm_response(response: dict) -> AgentOutput:
     # thought/speech keys, unpack it (LLM sometimes returns double-encoded JSON)
     speech_val = data.get("speech", "")
     if isinstance(speech_val, str) and speech_val.strip().startswith("{"):
-        try:
-            nested = json.loads(speech_val)
-            if isinstance(nested, dict) and "speech" in nested:
-                # Merge: nested thought only if outer thought is empty
-                if not data.get("thought"):
-                    data["thought"] = nested.get("thought", "")
-                data["speech"] = nested.get("speech", "")
-                if "action" in nested and not data.get("action"):
-                    data["action"] = nested["action"]
-        except (json.JSONDecodeError, TypeError):
-            pass
+        new_thought, new_speech = _unpack_nested_json(speech_val, data.get("thought", ""))
+        if new_speech != speech_val:
+            # Successfully unpacked
+            data["thought"] = new_thought
+            data["speech"] = new_speech
+        else:
+            # Unpacking failed — speech is garbled raw JSON
+            speech_val = ""  # clear garbled speech
+            logger.warning(
+                "Garbled speech: could not unpack nested JSON: %s",
+                speech_val[:200])
 
     # Defensive sanitise: strip LLM self-annotation from speech
     speech_val = data.get("speech", "")
     if isinstance(speech_val, str):
         speech_val = _sanitize_speech(speech_val)
 
-    return AgentOutput(
+    result = AgentOutput(
         thought=data.get("thought", ""),
         speech=speech_val,
         action=data.get("action", {}),
     )
+
+    # Detect garbled speech after all parsing
+    if _is_garbled_speech(result.speech):
+        result.is_garbled = True
+        logger.warning(
+            "Garbled speech detected for player, is_garbled=True: %s",
+            result.speech[:200])
+
+    return result
 
 
 def _parse_json_robust(json_str: str) -> dict | None:
@@ -219,6 +229,16 @@ _THOUGHT_LEAK_PATTERNS: list[re.Pattern] = [
     ),
 ]
 
+# Generic long parenthetical content patterns.
+# Strips any parenthetical block >= 30 chars that doesn't look like a
+# normal speech aside — catches reasoning leaks that miss specific markers.
+_GENERIC_LEAK_PATTERNS: list[re.Pattern] = [
+    # Full-width parentheses with >= 30 non-whitespace chars
+    re.compile(r'（[^）]{30,}）'),
+    # Half-width parentheses with >= 30 non-whitespace chars
+    re.compile(r'\([^)]{30,}\)'),
+]
+
 
 def _sanitize_speech(speech: str) -> str:
     """Strip LLM self-annotation and inner-thought leakage from speech.
@@ -229,9 +249,83 @@ def _sanitize_speech(speech: str) -> str:
     """
     for pat in _THOUGHT_LEAK_PATTERNS:
         speech = pat.sub("", speech)
+    # Strip long parenthetical content (>= 30 non-whitespace CJK chars)
+    # that doesn't match specific keywords but is still clearly reasoning
+    for pat in _GENERIC_LEAK_PATTERNS:
+        speech = pat.sub("", speech)
     # Clean up double spaces / leading/trailing whitespace left by removals
     speech = re.sub(r' +', ' ', speech).strip()
     # Remove empty parentheses pairs that may remain
     speech = re.sub(r'（\s*）', '', speech)
     speech = re.sub(r'\(\s*\)', '', speech)
     return speech
+
+
+def _unpack_nested_json(speech_val: str, current_thought: str) -> tuple[str, str]:
+    """Unpack nested JSON from a speech field that looks like a JSON object.
+
+    The LLM sometimes outputs the entire JSON structure as the speech value
+    (double-encoded JSON).  This function tries multiple strategies to
+    extract the inner speech/thought content.
+
+    Returns (updated_thought, inner_speech).
+    If all strategies fail, returns (current_thought, original_speech_val).
+    """
+    stripped = speech_val.strip()
+
+    # Strategy 1: try json.loads (handles properly formatted double-encoded JSON)
+    try:
+        nested = json.loads(stripped)
+        if isinstance(nested, dict):
+            inner_speech = nested.get("speech", "")
+            if inner_speech:
+                inner_thought = nested.get("thought", "")
+                return (current_thought or inner_thought, inner_speech)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Strategy 2: regex field extraction (handles malformed inner JSON)
+    result = _extract_fields(stripped)
+    if result:
+        inner_speech = result.get("speech", "")
+        if inner_speech:
+            inner_thought = result.get("thought", "")
+            return (current_thought or inner_thought, inner_speech)
+
+    # All strategies failed
+    return (current_thought, speech_val)
+
+
+def _is_garbled_speech(speech: str) -> bool:
+    """Check if speech content appears garbled or malformed.
+
+    Returns True if speech:
+    - Starts with '{' (raw JSON content leaked into speech)
+    - Contains excessive repetition (same 20+ char block repeated 4+ times)
+    """
+    if not speech:
+        return False
+
+    # Raw JSON in speech
+    if speech.startswith("{") and "thought" in speech:
+        return True
+
+    # Check for excessive repetition in long speech
+    if len(speech) >= 200:
+        for chunk_size in (20, 30):
+            chunks = [speech[i:i + chunk_size]
+                      for i in range(0, len(speech), chunk_size)]
+            if len(chunks) < 5:
+                continue
+            consecutive_dupes = 0
+            for i in range(len(chunks) - 1):
+                c1 = chunks[i].strip()
+                c2 = chunks[i + 1].strip()
+                if c1 and c2 and c1 == c2:
+                    consecutive_dupes += 1
+                    if consecutive_dupes >= 3:
+                        return True
+                else:
+                    consecutive_dupes = 0
+
+    return False

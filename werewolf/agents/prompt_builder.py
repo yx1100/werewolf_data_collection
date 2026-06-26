@@ -73,6 +73,7 @@ def build_system_prompt(player_id: int, role: str, personality: dict,
     parts.append("- 对 thought 内容的复述或引用")
     parts.append("speech 只包含一个玩家在桌游中可以用嘴巴公开说出来的话。")
     parts.append("内心分析和策略请全部放在 thought 字段中。")
+    parts.append("thought 简洁扼要即可（建议 300 字以内），speech 才是你完整的公开发言内容。")
 
     return "\n".join(parts)
 
@@ -212,8 +213,13 @@ def _phase_instructions(phase: str, context: dict) -> str:
             "3. 投票协调（绑票目标，集中投票放逐一名好人）\n"
             "speech 是你说给队友的话，禁止在 speech 中用括号插入自言自语或备注。\n"
             "请与同伴讨论今晚要击杀的目标。\n"
+            "警告：speech 中禁止出现 JSON 格式内容或括号括起来的推理文字，这是严重格式错误。\n"
             "请以 JSON 格式输出（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的分析和建议", "speech": "你的发言（纯口头语句，无括号心理活动）", "action": {"type": "discuss"}}'
+            '{\n'
+            '  "thought": "你的分析和建议",\n'
+            '  "speech": "你的发言（纯口头语句，无括号心理活动）",\n'
+            '  "action": {"type": "discuss"}\n'
+            '}'
         ),
 
         "NIGHT_WEREWOLF_KILL": (
@@ -253,16 +259,26 @@ def _phase_instructions(phase: str, context: dict) -> str:
             f"现在是第{context.get('round', 1)}天依次发言阶段。轮到你了。\n"
             "请根据当前局势发表你的分析和怀疑。\n"
             "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动、策略备注或自言自语。\n"
-            "内心分析和策略放在 thought 字段中。输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的公开发言（纯口头语句，无括号心理活动）"}'
+            "内心分析和策略放在 thought 字段中。\n"
+            "警告：speech 中禁止出现 JSON 格式内容或括号括起来的推理文字，这是严重格式错误。\n"
+            "输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{\n'
+            '  "thought": "你的内心推理",\n'
+            '  "speech": "你的公开发言（纯口头语句，无括号心理活动）"\n'
+            '}'
         ),
 
         "DAY_FREE_DISCUSSION": (
             f"现在是自由讨论第{context.get('free_round', 1)}轮。轮到你了。\n"
             "可以回应其他人的发言，提出新的分析，或质疑他人。\n"
             "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动、策略备注或自言自语。\n"
-            "内心分析和策略放在 thought 字段中。输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的公开发言（纯口头语句，无括号心理活动）"}'
+            "内心分析和策略放在 thought 字段中。\n"
+            "警告：speech 中禁止出现 JSON 格式内容或括号括起来的推理文字，这是严重格式错误。\n"
+            "输出格式（只输出 JSON，不要有其他文字）：\n"
+            '{\n'
+            '  "thought": "你的内心推理",\n'
+            '  "speech": "你的公开发言（纯口头语句，无括号心理活动）"\n'
+            '}'
         ),
 
         "VOTING": (
@@ -277,8 +293,12 @@ def _phase_instructions(phase: str, context: dict) -> str:
             f"PK台玩家：{'、'.join(str(p) for p in context.get('pk_candidates', []))}号。\n"
             "请说明为什么你不应该被放逐，或指出其他PK台玩家的可疑之处。\n"
             "speech 必须是你口头说出的完整语句，绝对禁止在 speech 中用括号插入心理活动或自言自语。\n"
+            "警告：speech 中禁止出现 JSON 格式内容或括号括起来的推理文字，这是严重格式错误。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的内心推理", "speech": "你的PK发言（纯口头语句，无括号心理活动）"}'
+            '{\n'
+            '  "thought": "你的内心推理",\n'
+            '  "speech": "你的PK发言（纯口头语句，无括号心理活动）"\n'
+            '}'
         ),
 
         "PK_VOTING": (
@@ -291,8 +311,12 @@ def _phase_instructions(phase: str, context: dict) -> str:
         "LAST_WORDS": (
             f"你（{context.get('eliminated_player')}号）被放逐了。\n"
             "请发表你的遗言。speech 是你口头说出的遗言，禁止在 speech 中用括号插入心理活动。\n"
+            "警告：speech 中禁止出现 JSON 格式内容或括号括起来的推理文字，这是严重格式错误。\n"
             "输出格式（只输出 JSON，不要有其他文字）：\n"
-            '{"thought": "你的想法", "speech": "你的遗言（纯口头语句，无括号心理活动）"}'
+            '{\n'
+            '  "thought": "你的想法",\n'
+            '  "speech": "你的遗言（纯口头语句，无括号心理活动）"\n'
+            '}'
         ),
 
         "HUNTER_SHOOT": (

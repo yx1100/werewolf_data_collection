@@ -30,8 +30,14 @@ class LLMClient(ABC):
         ...
 
     async def chat(self, messages: list[dict],
-                   response_format: dict | None = None) -> dict:
+                   response_format: dict | None = None,
+                   temperature: float | None = None) -> dict:
         """Send chat completion request. Returns the API response dict.
+
+        Args:
+            messages: conversation messages
+            response_format: optional JSON mode config
+            temperature: optional per-call temperature override (uses config value if None)
 
         When deep_thinking is enabled, the response will include
         reasoning_content alongside content. Only content is kept in
@@ -47,7 +53,10 @@ class LLMClient(ABC):
         # for DeepSeek and MiMo (per their API docs).  Qwen supports
         # temperature in thinking mode and handles it via the base class.
         if not (self.deep_thinking and self.get_provider_name() in ("deepseek", "mimo")):
-            kwargs["temperature"] = self.config.get("temperature", 1.0)
+            kwargs["temperature"] = (
+                temperature if temperature is not None
+                else self.config.get("temperature", 1.0)
+            )
             # top_p: nucleus sampling; same restriction as temperature
             # (DeepSeek / MiMo thinking mode does not support either).
             top_p = self.config.get("top_p")
@@ -144,7 +153,8 @@ class QwenClient(LLMClient):
         return {}
 
     async def chat(self, messages: list[dict],
-                   response_format: dict | None = None) -> dict:
+                   response_format: dict | None = None,
+                   temperature: float | None = None) -> dict:
         """Thin override: drop response_format when thinking is enabled.
 
         Qwen thinking mode does NOT support structured output (JSON mode).
@@ -159,7 +169,7 @@ class QwenClient(LLMClient):
                 "output.  Relying on prompt instructions for JSON format."
             )
             response_format = None
-        return await super().chat(messages, response_format)
+        return await super().chat(messages, response_format, temperature=temperature)
 
 
 class DeepSeekClient(LLMClient):

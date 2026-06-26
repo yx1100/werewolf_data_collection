@@ -51,6 +51,9 @@ class Agent:
             {"role": "system", "content": self._system_prompt}
         ]
 
+        # Adaptive temperature: count of consecutive garbled outputs
+        self._garbled_count = 0
+
     def add_private_info(self, info: str) -> None:
         """Add private info the agent knows (e.g., seer check result)."""
         self._private_info.append(info)
@@ -100,23 +103,52 @@ class Agent:
 
         output = parse_llm_response(response)
 
-        # ── Retry + fallback: empty speech in a phase that requires it ──
+        # ── Retry + fallback: empty or garbled speech in a phase that requires it ──
         phase = context.get("phase", "")
-        if phase in SPEECH_REQUIRED_PHASES and not output.speech.strip():
+        needs_retry = (
+            phase in SPEECH_REQUIRED_PHASES
+            and (not output.speech.strip() or output.is_garbled)
+        )
+
+        # Adaptive temperature: if consecutive garbled, reduce temperature
+        effective_temperature = None
+        if self._garbled_count >= 2:
+            effective_temperature = 0.7
+            logger.info(
+                "Player %d (%s): garbled_count=%d, reducing temperature to 0.7",
+                self.player_id, self.role, self._garbled_count)
+
+        if needs_retry:
+            # Build retry messages with format guidance appended
+            retry_messages = list(messages)
+            retry_messages.append({
+                "role": "user",
+                "content": (
+                    "请确保 JSON 格式正确，thought 和 speech 不要混在一起。"
+                    "直接输出 JSON，不要包含其他文字。"
+                ),
+            })
+
             for attempt in range(1, SPEECH_EMPTY_RETRIES + 1):
+                reason = "empty" if not output.speech.strip() else "garbled"
                 logger.warning(
-                    "Player %d (%s) phase=%s: empty speech, retry %d/%d",
-                    self.player_id, self.role, phase, attempt, SPEECH_EMPTY_RETRIES)
+                    "Player %d (%s) phase=%s: %s speech, retry %d/%d",
+                    self.player_id, self.role, phase, reason,
+                    attempt, SPEECH_EMPTY_RETRIES)
                 try:
                     retry_response = await self.llm_client.chat(
-                        messages, response_format=response_format)
+                        retry_messages, response_format=response_format,
+                        temperature=effective_temperature)
                     retry_output = parse_llm_response(retry_response)
-                    if retry_output.speech.strip():
+                    if retry_output.speech.strip() and not retry_output.is_garbled:
                         output = retry_output
                         response = retry_response
                         logger.info(
                             "Player %d retry %d succeeded", self.player_id, attempt)
                         break
+                    elif not retry_output.speech.strip() and attempt == SPEECH_EMPTY_RETRIES:
+                        # Last attempt with empty speech — keep output as-is for fallback
+                        output = retry_output
                 except Exception as retry_err:
                     logger.warning(
                         "Player %d retry %d failed: %s",
@@ -126,10 +158,26 @@ class Agent:
             if not output.speech.strip():
                 logger.warning(
                     "Player %d (%s) phase=%s: all retries exhausted, "
-                    "using fallback speech (thought present=%s)",
-                    self.player_id, self.role, phase, bool(output.thought.strip()))
+                    "using fallback speech (thought present=%s, garbled=%s)",
+                    self.player_id, self.role, phase,
+                    bool(output.thought.strip()), output.is_garbled)
                 output.speech = f"（{self.player_id}号玩家暂时无法发言）"
                 output.is_fallback_speech = True
+                output.is_garbled = False
+            elif output.is_garbled:
+                # Still garbled after retries — increment counter for adaptive temp
+                self._garbled_count += 1
+                logger.warning(
+                    "Player %d (%s) phase=%s: still garbled after retries "
+                    "(garbled_count=%d)",
+                    self.player_id, self.role, phase, self._garbled_count)
+            else:
+                # Retry succeeded — reset garbled counter
+                self._garbled_count = 0
+        else:
+            # No retry needed — reset garbled counter on clean output
+            if not output.is_garbled:
+                self._garbled_count = 0
 
         # Extract content only (NOT reasoning_content) for history,
         # per both Qwen and DeepSeek multi-turn docs
@@ -144,11 +192,11 @@ class Agent:
         # Trim history if too long (keep system prompt + recent turns)
         self._trim_history()
 
-        logger.debug("Player %d (%s) phase=%s speech=%s... action=%s",
+        logger.debug("Player %d (%s) phase=%s speech=%s... action=%s garbled=%s",
                       self.player_id, self.role,
                       context.get("phase", "?"),
                       (output.speech or "")[:80],
-                      output.action)
+                      output.action, output.is_garbled)
         return output
 
     def _build_messages_for_call(self) -> list[dict]:
@@ -210,7 +258,7 @@ class Agent:
         included in history — only the actual (possibly empty) LLM output
         is preserved so the fallback doesn't pollute future context.
         """
-        speech_for_history = "" if output.is_fallback_speech else output.speech
+        speech_for_history = "" if (output.is_fallback_speech or output.is_garbled) else output.speech
         content_obj = {
             "thought": output.thought,
             "speech": speech_for_history,

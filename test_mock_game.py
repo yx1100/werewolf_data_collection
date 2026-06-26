@@ -26,7 +26,7 @@ class MockClient:
     def get_provider_name(self) -> str:
         return "mock"
 
-    async def chat(self, messages, response_format=None):
+    async def chat(self, messages, response_format=None, temperature=None):
         # Parse the user message to figure out what phase we're in
         user_msg = ""
         for m in messages:
