@@ -153,6 +153,11 @@ class QwenClient(LLMClient):
         our phase prompts already include explicit JSON-format instructions.
         """
         if self.deep_thinking and response_format:
+            logger.warning(
+                "Qwen deep_thinking enabled: response_format (JSON mode) "
+                "dropped — Qwen thinking mode does not support structured "
+                "output.  Relying on prompt instructions for JSON format."
+            )
             response_format = None
         return await super().chat(messages, response_format)
 

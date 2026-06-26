@@ -192,22 +192,31 @@ def _extract_json(text: str) -> str | None:
 # Patterns that indicate LLM self-annotation / inner-thought leakage
 # in speech text.  These are stripped as a safety net even when the
 # prompt already instructs the model to keep speech clean.
+# Shared thought-marker keywords used by both full-width and half-width
+# parenthesis patterns below.  Adding a keyword here makes both patterns
+# pick it up automatically.
+_THOUGHT_MARKERS_FULL: str = (
+    r'在心里|其实是|其实我是|备注|注意|提示|我不能说|我不能暴露|'
+    r'内心|心里|悄悄|偷偷|OS|我在想|我心里|暗[中地]|实际[上是我]|'
+    r'本身是|策略|战术|此处暂不|先不|不要暴露|避免暴露|'
+    r'注[：:]|注意[：:]|提示[：:]'
+)
+
+_THOUGHT_MARKERS_HALF: str = (
+    r'其实是|其实我是|备注|注意|提示|心里|内心|我不能说|悄悄|偷偷|'
+    r'OS|我在想|我心里|注[:]|注意[:]|提示[:]'
+)
+
 _THOUGHT_LEAK_PATTERNS: list[re.Pattern] = [
     # Full-width parentheses containing thought markers
     # e.g. "民（其实我是猎人但我不能说）" → "民"
     re.compile(
-        r'（[^）]*(?:在心里|其实是|其实我是|备注|注意|我不能说|'
-        r'我不能暴露|内心|心里|悄悄|偷偷|暗[中地]|实际[上是我]|'
-        r'本身是|策略|战术|此处暂不|先不|不要暴露|避免暴露)[^）]*）'
+        r'（[^）]*(?:' + _THOUGHT_MARKERS_FULL + r')[^）]*）'
     ),
     # Half-width parentheses containing thought markers
     re.compile(
-        r'\([^)]*(?:其实是|其实我是|备注|心里|内心|'
-        r'我不能说|悄悄|偷偷)[^)]*\)'
+        r'\([^)]*(?:' + _THOUGHT_MARKERS_HALF + r')[^)]*\)'
     ),
-    # Trailing "（注：...）" or "（注意：...）" annotations
-    re.compile(r'（注[：:][^）]*）'),
-    re.compile(r'（注意[：:][^）]*）'),
 ]
 
 

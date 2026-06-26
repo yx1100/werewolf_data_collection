@@ -130,7 +130,7 @@ class GameCollector:
                         deaths.append({
                             "player_id": event["player_id"],
                             "round": round_num,
-                            "cause": "elimination",
+                            "cause": event.get("cause", "vote_out"),
                         })
                     elif etype == "hunter_shoot":
                         deaths.append({

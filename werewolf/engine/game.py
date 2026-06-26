@@ -1084,6 +1084,7 @@ class Game:
             events.append({
                 "type": "elimination",
                 "player_id": eliminated,
+                "cause": "vote_out",
                 "visibility": "public",
             })
             self.state.push_event({
