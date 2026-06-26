@@ -16,11 +16,14 @@ MAX_HISTORY_TURNS = 20
 MAX_CONTEXT_CHARS = 1_000_000
 
 # Phases where a non-empty speech/message is expected.
-# When the LLM returns empty speech in these phases, a fallback is used.
+# When the LLM returns empty speech in these phases, retries + fallback kick in.
 SPEECH_REQUIRED_PHASES = frozenset({
     "DAY_DISCUSSION", "DAY_FREE_DISCUSSION", "PK_DISCUSSION",
     "LAST_WORDS", "NIGHT_WEREWOLF_CHAT",
 })
+
+# Number of retries when the LLM returns empty speech in a required phase.
+SPEECH_EMPTY_RETRIES = 2
 
 
 class Agent:
@@ -97,14 +100,36 @@ class Agent:
 
         output = parse_llm_response(response)
 
-        # ── Fallback: empty speech in a phase that requires it ──
+        # ── Retry + fallback: empty speech in a phase that requires it ──
         phase = context.get("phase", "")
         if phase in SPEECH_REQUIRED_PHASES and not output.speech.strip():
-            logger.warning(
-                "Player %d (%s) phase=%s: LLM returned empty speech "
-                "(thought present=%s). Using fallback.",
-                self.player_id, self.role, phase, bool(output.thought.strip()))
-            output.speech = f"（{self.player_id}号玩家暂时无法发言）"
+            for attempt in range(1, SPEECH_EMPTY_RETRIES + 1):
+                logger.warning(
+                    "Player %d (%s) phase=%s: empty speech, retry %d/%d",
+                    self.player_id, self.role, phase, attempt, SPEECH_EMPTY_RETRIES)
+                try:
+                    retry_response = await self.llm_client.chat(
+                        messages, response_format=response_format)
+                    retry_output = parse_llm_response(retry_response)
+                    if retry_output.speech.strip():
+                        output = retry_output
+                        response = retry_response
+                        logger.info(
+                            "Player %d retry %d succeeded", self.player_id, attempt)
+                        break
+                except Exception as retry_err:
+                    logger.warning(
+                        "Player %d retry %d failed: %s",
+                        self.player_id, attempt, retry_err)
+
+            # All retries exhausted — fallback for game engine
+            if not output.speech.strip():
+                logger.warning(
+                    "Player %d (%s) phase=%s: all retries exhausted, "
+                    "using fallback speech (thought present=%s)",
+                    self.player_id, self.role, phase, bool(output.thought.strip()))
+                output.speech = f"（{self.player_id}号玩家暂时无法发言）"
+                output.is_fallback_speech = True
 
         # Extract content only (NOT reasoning_content) for history,
         # per both Qwen and DeepSeek multi-turn docs
@@ -180,11 +205,15 @@ class Agent:
 
         Returns output JSON as a string for context preservation.
         reasoning_content is intentionally excluded per API best practice.
+
+        When is_fallback_speech is set, the fallback placeholder is NOT
+        included in history — only the actual (possibly empty) LLM output
+        is preserved so the fallback doesn't pollute future context.
         """
-        # Use the parsed output as a JSON string — cleaner than raw content
+        speech_for_history = "" if output.is_fallback_speech else output.speech
         content_obj = {
             "thought": output.thought,
-            "speech": output.speech,
+            "speech": speech_for_history,
             "action": output.action,
         }
         return json.dumps(content_obj, ensure_ascii=False)

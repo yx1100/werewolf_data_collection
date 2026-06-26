@@ -15,6 +15,7 @@ class AgentOutput:
         self.thought = thought
         self.speech = speech
         self.action = action or {}
+        self.is_fallback_speech = False
 
 
 def parse_llm_response(response: dict) -> AgentOutput:
