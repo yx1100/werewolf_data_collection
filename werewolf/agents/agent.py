@@ -15,6 +15,13 @@ MAX_HISTORY_TURNS = 20
 # When exceeded, old non-system messages are dropped until the total fits.
 MAX_CONTEXT_CHARS = 1_000_000
 
+# Phases where a non-empty speech/message is expected.
+# When the LLM returns empty speech in these phases, a fallback is used.
+SPEECH_REQUIRED_PHASES = frozenset({
+    "DAY_DISCUSSION", "DAY_FREE_DISCUSSION", "PK_DISCUSSION",
+    "LAST_WORDS", "NIGHT_WEREWOLF_CHAT",
+})
+
 
 class Agent:
     """An LLM-powered Werewolf player agent.
@@ -89,6 +96,15 @@ class Agent:
                 speech=f"（{self.player_id}号玩家暂时无法发言）")
 
         output = parse_llm_response(response)
+
+        # ── Fallback: empty speech in a phase that requires it ──
+        phase = context.get("phase", "")
+        if phase in SPEECH_REQUIRED_PHASES and not output.speech.strip():
+            logger.warning(
+                "Player %d (%s) phase=%s: LLM returned empty speech "
+                "(thought present=%s). Using fallback.",
+                self.player_id, self.role, phase, bool(output.thought.strip()))
+            output.speech = f"（{self.player_id}号玩家暂时无法发言）"
 
         # Extract content only (NOT reasoning_content) for history,
         # per both Qwen and DeepSeek multi-turn docs
